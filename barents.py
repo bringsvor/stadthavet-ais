@@ -17,6 +17,17 @@ import os
 import sys
 import requests
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+# Load .env file if it exists (for local development)
+env_path = Path(__file__).parent / '.env'
+if env_path.exists():
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ.setdefault(key, value)
 
 # Database detection - use PostgreSQL on render.com, SQLite locally
 USE_POSTGRES = os.environ.get('RENDER') is not None or os.environ.get('DATABASE_URL') is not None
@@ -45,22 +56,27 @@ CONFIG = {
     'stad_line_end': (4.342984, 62.442407),
 
     # Waiting zones (ships waiting for weather to improve)
-    # East side of Stad (waiting to cross westward)
+    # Positioned in open water, away from ports/quays
+    # East side of Stad (waiting to cross westward) - between Stad and Ålesund
     'waiting_zone_east': {
-        'center_lat': 62.3,
-        'center_lon': 5.8,
-        'radius_km': 15
+        'center_lat': 62.25,
+        'center_lon': 5.3,
+        'radius_km': 10
     },
-    # West side of Stad (waiting to cross eastward)
+    # West side of Stad (waiting to cross eastward) - west of Stad in open ocean
     'waiting_zone_west': {
-        'center_lat': 62.3,
-        'center_lon': 4.8,
-        'radius_km': 15
+        'center_lat': 62.35,
+        'center_lon': 4.6,
+        'radius_km': 10
     },
 
     # Loitering thresholds
     'loitering_speed_threshold': 3.0,  # knots - below this is considered stationary/waiting
     'loitering_time_threshold': 120,   # minutes - must be in zone this long to count as waiting
+
+    # Weather thresholds for considering waiting as weather-related
+    'wind_threshold_ms': 10.0,         # m/s - above this is considered bad weather for crossing
+    'require_bad_weather': True,       # Only count waiting if weather was actually bad
 
     # Weather API
     'met_api_url': 'https://frost.met.no/observations/v0.jsonld',
@@ -437,17 +453,20 @@ def fetch_weather_data(start_time, end_time):
         'referencetime': f"{start_time}/{end_time}"
     }
 
-    headers = {}
+    # Frost API uses HTTP Basic Auth with client_id as username
+    auth = None
     if CONFIG['met_client_id']:
-        headers['Authorization'] = CONFIG['met_client_id']
+        auth = (CONFIG['met_client_id'], '')  # client_id as username, empty password
 
     try:
-        response = requests.get(CONFIG['met_api_url'], params=params, headers=headers, timeout=30)
+        response = requests.get(CONFIG['met_api_url'], params=params, auth=auth, timeout=30)
 
         if response.status_code == 200:
             return response.json()
         else:
             print(f"Weather API error: {response.status_code}")
+            if response.status_code == 401:
+                print(f"  Authentication failed - check MET_CLIENT_ID")
             return None
     except Exception as e:
         print(f"Failed to fetch weather data: {e}")
@@ -662,34 +681,58 @@ def detect_waiting_events(db):
                         if duration_minutes >= CONFIG['loitering_time_threshold']:
                             avg_speed = sum(speeds_in_zone) / len(speeds_in_zone) if speeds_in_zone else 0
 
-                            # Check if ship eventually crossed
-                            db.execute('''
-                                SELECT crossing_time FROM crossings
-                                WHERE mmsi = %s AND crossing_time > %s
-                                ORDER BY crossing_time LIMIT 1
-                            ''' if db.use_postgres else '''
-                                SELECT crossing_time FROM crossings
-                                WHERE mmsi = ? AND crossing_time > ?
-                                ORDER BY crossing_time LIMIT 1
-                            ''', (mmsi, waiting_end))
+                            # Check weather conditions during waiting period (if required)
+                            weather_related = True
+                            if CONFIG['require_bad_weather']:
+                                db.execute('''
+                                    SELECT AVG(wind_speed), MAX(wind_speed)
+                                    FROM weather
+                                    WHERE timestamp BETWEEN %s AND %s
+                                ''' if db.use_postgres else '''
+                                    SELECT AVG(wind_speed), MAX(wind_speed)
+                                    FROM weather
+                                    WHERE timestamp BETWEEN ? AND ?
+                                ''', (waiting_start, waiting_end))
 
-                            crossing_row = db.fetchone()
-                            crossed = crossing_row is not None
-                            crossing_time = crossing_row[0] if crossed else None
+                                weather_row = db.fetchone()
+                                if weather_row and weather_row[0] is not None:
+                                    avg_wind = weather_row[0]
+                                    max_wind = weather_row[1]
+                                    # Only consider weather-related if wind exceeded threshold
+                                    weather_related = max_wind >= CONFIG['wind_threshold_ms']
+                                else:
+                                    # No weather data available, skip this waiting event
+                                    weather_related = False
 
-                            # Store waiting event
-                            db.execute('''
-                                INSERT INTO waiting_events
-                                (mmsi, zone, start_time, end_time, duration_minutes, avg_speed, crossed, crossing_time)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                            ''' if db.use_postgres else '''
-                                INSERT INTO waiting_events
-                                (mmsi, zone, start_time, end_time, duration_minutes, avg_speed, crossed, crossing_time)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                            ''', (mmsi, waiting_zone, waiting_start, waiting_end, duration_minutes,
-                                  avg_speed, crossed, crossing_time))
+                            if weather_related:
+                                # Check if ship eventually crossed
+                                db.execute('''
+                                    SELECT crossing_time FROM crossings
+                                    WHERE mmsi = %s AND crossing_time > %s
+                                    ORDER BY crossing_time LIMIT 1
+                                ''' if db.use_postgres else '''
+                                    SELECT crossing_time FROM crossings
+                                    WHERE mmsi = ? AND crossing_time > ?
+                                    ORDER BY crossing_time LIMIT 1
+                                ''', (mmsi, waiting_end))
 
-                            waiting_events_detected += 1
+                                crossing_row = db.fetchone()
+                                crossed = crossing_row is not None
+                                crossing_time = crossing_row[0] if crossed else None
+
+                                # Store waiting event
+                                db.execute('''
+                                    INSERT INTO waiting_events
+                                    (mmsi, zone, start_time, end_time, duration_minutes, avg_speed, crossed, crossing_time)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                ''' if db.use_postgres else '''
+                                    INSERT INTO waiting_events
+                                    (mmsi, zone, start_time, end_time, duration_minutes, avg_speed, crossed, crossing_time)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                ''', (mmsi, waiting_zone, waiting_start, waiting_end, duration_minutes,
+                                      avg_speed, crossed, crossing_time))
+
+                                waiting_events_detected += 1
 
                     except Exception as e:
                         print(f"Error processing waiting event: {e}")

@@ -7,7 +7,7 @@ services:
     startCommand: "python web.py"
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11
+        value: 3.11.9
       - key: RENDER
         value: true
       - key: ALLOWED_ORIGINS
@@ -25,7 +25,7 @@ services:
     startCommand: "python barents.py"
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11
+        value: 3.11.9
       # Same env vars as web service - add in Render dashboard
 
 # PostgreSQL database (optional - can also use Render's built-in DB)

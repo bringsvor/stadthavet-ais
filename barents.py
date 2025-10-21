@@ -15,9 +15,19 @@ https://developer.barentswatch.no/docs/AIS/historic-ais-api
 
 import os
 import sys
+import logging
 import requests
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+# Configure logging
+log_level = os.environ.get('LOG_LEVEL', 'INFO')
+logging.basicConfig(
+    level=getattr(logging, log_level),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
 
 # Load .env file if it exists (for local development)
 env_path = Path(__file__).parent / '.env'
@@ -65,8 +75,8 @@ CONFIG = {
     },
     # West side of Stad (waiting to cross eastward) - west of Stad in open ocean
     'waiting_zone_west': {
-        'center_lat': 62.35,
-        'center_lon': 4.6,
+        'center_lat': 62.25,  # A bit south
+        'center_lon': 4.2,    # Further west, clearly on ocean side
         'radius_km': 10
     },
 
@@ -82,8 +92,8 @@ CONFIG = {
     'met_api_url': 'https://frost.met.no/observations/v0.jsonld',
     'met_client_id': os.environ.get('MET_CLIENT_ID', ''),  # Optional: register at frost.met.no
 
-    # Weather station near Stad (Måløy)
-    'weather_station': 'SN44560',  # Måløy weather station
+    # Weather station near Stad (Svinøy Fyr - closest to Stad with full wind data)
+    'weather_station': 'SN59800',  # Svinøy Fyr weather station
 
     # Database
     'sqlite_db': 'stadthavet_ais.db',
@@ -128,11 +138,11 @@ class Database:
     def connect(self):
         """Establish database connection"""
         if self.use_postgres:
-            print(f"Connecting to PostgreSQL...")
+            logger.info(f"Connecting to PostgreSQL...")
             self.conn = psycopg2.connect(CONFIG['postgres_url'])
             self.cursor = self.conn.cursor()
         else:
-            print(f"Connecting to SQLite: {CONFIG['sqlite_db']}")
+            logger.info(f"Connecting to SQLite: {CONFIG['sqlite_db']}")
             self.conn = sqlite3.connect(CONFIG['sqlite_db'])
             self.cursor = self.conn.cursor()
 
@@ -341,7 +351,7 @@ class Database:
 
 def get_access_token():
     """Authenticate with Barentswatch and get access token"""
-    print("Authenticating with Barentswatch...")
+    logger.info("Authenticating with Barentswatch...")
 
     data = {
         'client_id': CONFIG['client_id'],
@@ -357,16 +367,17 @@ def get_access_token():
     )
 
     if response.status_code != 200:
+        logger.error(f"Authentication failed: {response.status_code} - {response.text}")
         raise Exception(f"Authentication failed: {response.status_code} - {response.text}")
 
     token_data = response.json()
-    print("✓ Authenticated successfully")
+    logger.info("✓ Authenticated successfully")
     return token_data['access_token']
 
 
 def get_mmsi_list(access_token, msgtimefrom, msgtimeto):
     """Get list of MMSIs in the Stadthavet area for given time range"""
-    print(f"Fetching MMSI list for {msgtimefrom} to {msgtimeto}...")
+    logger.info(f"Fetching MMSI list for {msgtimefrom} to {msgtimeto}...")
 
     lat_nw, lon_nw = CONFIG['area_nw']
     lat_se, lon_se = CONFIG['area_se']
@@ -397,7 +408,7 @@ def get_mmsi_list(access_token, msgtimefrom, msgtimeto):
         raise Exception(f"Failed to fetch MMSI list: {response.status_code} - {response.text}")
 
     mmsi_list = response.json()
-    print(f"✓ Found {len(mmsi_list)} MMSIs")
+    logger.info(f"✓ Found {len(mmsi_list)} MMSIs")
     return mmsi_list
 
 
@@ -464,12 +475,12 @@ def fetch_weather_data(start_time, end_time):
         if response.status_code == 200:
             return response.json()
         else:
-            print(f"Weather API error: {response.status_code}")
+            logger.warning(f"Weather API error: {response.status_code}")
             if response.status_code == 401:
-                print(f"  Authentication failed - check MET_CLIENT_ID")
+                logger.warning(f"  Authentication failed - check MET_CLIENT_ID")
             return None
     except Exception as e:
-        print(f"Failed to fetch weather data: {e}")
+        logger.error(f"Failed to fetch weather data: {e}")
         return None
 
 
@@ -536,7 +547,10 @@ def fetch_and_store_track(db, access_token, mmsi):
         return False
 
     # Extract ship info from first position
-    ship_name = positions[0].get('name', 'Unknown')
+    ship_name = positions[0].get('name') or f'Unknown-{mmsi}'
+    # Clean up empty/whitespace names
+    if ship_name.strip() == '':
+        ship_name = f'Unknown-{mmsi}'
     ship_type = positions[0].get('shipType')
     ship_type_name = get_ship_type_name(ship_type)
 
@@ -597,7 +611,7 @@ def fetch_and_store_track(db, access_token, mmsi):
                     ''', (mmsi, timestamp, lat, lon, direction))
 
                     crossings_detected += 1
-                    print(f"  *** CROSSING: {ship_name} ({direction}) at {timestamp}")
+                    logger.info(f"  *** CROSSING: {ship_name} ({direction}) at {timestamp}")
 
             prev_pos = pos
 
@@ -607,7 +621,7 @@ def fetch_and_store_track(db, access_token, mmsi):
 
 def detect_waiting_events(db):
     """Analyze position data to detect ships waiting/loitering in zones"""
-    print("\nAnalyzing waiting events...")
+    logger.info("\nAnalyzing waiting events...")
 
     # Get all ships with positions
     db.execute('SELECT DISTINCT mmsi FROM positions')
@@ -735,7 +749,7 @@ def detect_waiting_events(db):
                                 waiting_events_detected += 1
 
                     except Exception as e:
-                        print(f"Error processing waiting event: {e}")
+                        logger.error(f"Error processing waiting event: {e}")
 
                 # Reset waiting tracking
                 waiting_start = None
@@ -743,17 +757,17 @@ def detect_waiting_events(db):
                 speeds_in_zone = []
 
     db.commit()
-    print(f"✓ Detected {waiting_events_detected} waiting events")
+    logger.info(f"✓ Detected {waiting_events_detected} waiting events")
     return waiting_events_detected
 
 
 def store_weather_data(db, start_time, end_time):
     """Fetch and store weather data for the time period"""
-    print(f"\nFetching weather data...")
+    logger.info(f"\nFetching weather data...")
 
     weather_data = fetch_weather_data(start_time, end_time)
     if not weather_data:
-        print("No weather data available")
+        logger.info("No weather data available")
         return 0
 
     observations = parse_weather_observations(weather_data)
@@ -772,13 +786,13 @@ def store_weather_data(db, start_time, end_time):
         stored += 1
 
     db.commit()
-    print(f"✓ Stored {stored} weather observations")
+    logger.info(f"✓ Stored {stored} weather observations")
     return stored
 
 
 def calculate_daily_stats(db):
     """Calculate and store daily statistics"""
-    print("\nCalculating daily statistics...")
+    logger.info("\nCalculating daily statistics...")
 
     # Get date range from data
     db.execute('SELECT MIN(timestamp), MAX(timestamp) FROM positions')
@@ -852,7 +866,7 @@ def calculate_daily_stats(db):
         ''', (date, crossings, avg_wind, max_gust, avg_wave, waiting_count, avg_waiting))
 
     db.commit()
-    print("✓ Daily statistics updated")
+    logger.info("✓ Daily statistics updated")
 
 
 def print_summary(db):
@@ -873,16 +887,16 @@ def print_summary(db):
     avg_wait_row = db.fetchone()
     avg_wait_time = avg_wait_row[0] if avg_wait_row[0] else 0
 
-    print(f'\n=== SUMMARY ===')
-    print(f'Ships with track data: {ships_with_data}')
-    print(f'Ships that crossed Stad: {ships_crossed}')
-    print(f'Total crossings: {total_crossings}')
-    print(f'Waiting events detected: {total_waiting}')
+    logger.info(f'\n=== SUMMARY ===')
+    logger.info(f'Ships with track data: {ships_with_data}')
+    logger.info(f'Ships that crossed Stad: {ships_crossed}')
+    logger.info(f'Total crossings: {total_crossings}')
+    logger.info(f'Waiting events detected: {total_waiting}')
     if total_waiting > 0:
-        print(f'Average waiting time: {avg_wait_time:.1f} minutes ({avg_wait_time/60:.1f} hours)')
+        logger.info(f'Average waiting time: {avg_wait_time:.1f} minutes ({avg_wait_time/60:.1f} hours)')
 
     if ships_crossed > 0:
-        print(f'\n=== SHIPS THAT CROSSED STAD ===')
+        logger.info(f'\n=== SHIPS THAT CROSSED STAD ===')
         db.execute('''
             SELECT c.mmsi, s.name, s.ship_type_name, c.crossing_time, c.direction
             FROM crossings c
@@ -891,10 +905,10 @@ def print_summary(db):
         ''')
 
         for row in db.fetchall():
-            print(f'{row[0]:>10} | {row[1]:30} | {row[2]:20} | {row[3]} | {row[4]}')
+            logger.info(f'{row[0]:>10} | {row[1]:30} | {row[2]:20} | {row[3]} | {row[4]}')
 
     if total_waiting > 0:
-        print(f'\n=== WAITING EVENTS ===')
+        logger.info(f'\n=== WAITING EVENTS ===')
         db.execute('''
             SELECT w.mmsi, s.name, w.zone, w.start_time, w.duration_minutes, w.crossed
             FROM waiting_events w
@@ -905,15 +919,15 @@ def print_summary(db):
         for row in db.fetchall():
             mmsi, name, zone, start_time, duration, crossed = row
             crossed_str = "✓ crossed" if crossed else "✗ did not cross"
-            print(f'{mmsi:>10} | {name:30} | {zone:5} | {duration:4}min | {crossed_str}')
+            logger.info(f'{mmsi:>10} | {name:30} | {zone:5} | {duration:4}min | {crossed_str}')
 
 
 def main():
     """Main execution"""
-    print(f"\n{'='*60}")
-    print(f"Barentswatch AIS Data Collection - Stadthavet")
-    print(f"Database: {'PostgreSQL (render.com)' if USE_POSTGRES else 'SQLite (local)'}")
-    print(f"{'='*60}\n")
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Barentswatch AIS Data Collection - Stadthavet")
+    logger.info(f"Database: {'PostgreSQL (render.com)' if USE_POSTGRES else 'SQLite (local)'}")
+    logger.info(f"{'='*60}\n")
 
     # Initialize database
     db = Database()
@@ -932,7 +946,7 @@ def main():
         mmsi_list = get_mmsi_list(access_token, msgtimefrom, msgtimeto)
 
         # Fetch tracks for each MMSI
-        print(f"\nFetching tracks (this may take a while)...\n")
+        logger.info(f"\nFetching tracks (this may take a while)...\n")
 
         processed = 0
         new_data = 0
@@ -941,15 +955,15 @@ def main():
             result = fetch_and_store_track(db, access_token, mmsi)
 
             if result is False:
-                print(f'[{i+1}/{len(mmsi_list)}] MMSI {mmsi} - already in database or no data')
+                logger.info(f'[{i+1}/{len(mmsi_list)}] MMSI {mmsi} - already in database or no data')
             else:
                 success, ship_name, ship_type, positions, crossings = result
                 new_data += 1
-                print(f'[{i+1}/{len(mmsi_list)}] {ship_name} ({ship_type}) - {positions} positions')
+                logger.info(f'[{i+1}/{len(mmsi_list)}] {ship_name} ({ship_type}) - {positions} positions')
 
             processed += 1
 
-        print(f"\n✓ Processed {processed} MMSIs ({new_data} new)")
+        logger.info(f"\n✓ Processed {processed} MMSIs ({new_data} new)")
 
         # Analyze waiting events
         detect_waiting_events(db)
@@ -964,7 +978,7 @@ def main():
         print_summary(db)
 
     except Exception as e:
-        print(f"\n✗ ERROR: {e}")
+        logger.error(f"\n✗ ERROR: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
@@ -972,9 +986,9 @@ def main():
     finally:
         db.close()
 
-    print(f"\n{'='*60}")
-    print("Done!")
-    print(f"{'='*60}\n")
+    logger.info(f"\n{'='*60}")
+    logger.info("Done!")
+    logger.info(f"{'='*60}\n")
 
 
 if __name__ == '__main__':

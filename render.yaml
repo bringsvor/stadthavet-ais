@@ -1,0 +1,35 @@
+services:
+  # Web service (Flask app)
+  - type: web
+    name: stadthavet-ais
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python web.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: RENDER
+        value: true
+      - key: ALLOWED_ORIGINS
+        value: https://stad.bringsvor.com
+      # Database URL will be auto-injected if you create a PostgreSQL database
+      # BARENTSWATCH_CLIENT_ID, BARENTSWATCH_CLIENT_SECRET, MET_CLIENT_ID
+      # need to be added manually in Render dashboard as secret env vars
+
+  # Cron job for data collection (runs every 12 hours)
+  - type: cron
+    name: stadthavet-ais-collector
+    env: python
+    schedule: "0 */12 * * *"  # At minute 0 past every 12th hour
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python barents.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      # Same env vars as web service - add in Render dashboard
+
+# PostgreSQL database (optional - can also use Render's built-in DB)
+databases:
+  - name: stadthavet-db
+    databaseName: stadthavet
+    user: stadthavet

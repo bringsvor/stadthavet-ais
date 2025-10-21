@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="nn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">Stadthavet AIS Sporing</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+    <div class="header">
+        <div class="header-content">
+            <div>
+                <h1 id="header-title">🌊 Stadthavet AIS Sporing</h1>
+                <p id="header-subtitle">Sanntidsovervaking av skipstrafikk over Stad-halvøya</p>
+            </div>
+            <div class="header-right">
+                <a href="/about" class="about-link" data-i18n="nav.about">Om oss</a>
+                <div class="header-status" id="last-updated">
+                    <div data-i18n="status.lastUpdated">Sist oppdatert:</div>
+                    <div id="update-time">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-ships">-</div>
+                    <div class="stat-label" data-i18n="stats.totalShips">Skip totalt</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-crossings">-</div>
+                    <div class="stat-label" data-i18n="stats.crossings">Kryssingar</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-waiting">-</div>
+                    <div class="stat-label" data-i18n="stats.waitingEvents">Ventehendingar</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-recent">-</div>
+                    <div class="stat-label" data-i18n="stats.last24h">Siste 24t</div>
+                </div>
+            </div>
+
+            <h3 class="section-title" data-i18n="sections.recentCrossings">Siste kryssingar</h3>
+            <div class="event-list" id="crossings-list">
+                <div class="loading" data-i18n="loading.crossings">Lastar kryssingar...</div>
+            </div>
+
+            <h3 class="section-title" data-i18n="sections.waitingEvents">Ventehendingar</h3>
+            <div class="event-list" id="waiting-list">
+                <div class="loading" data-i18n="loading.waiting">Lastar ventehendingar...</div>
+            </div>
+
+            <h3 class="section-title" data-i18n="weather.current">Aktuelt vêr (Måløy)</h3>
+            <div class="stat-card" id="weather-card">
+                <div class="loading" data-i18n="weather.noData">Ingen værdata tilgjengeleg</div>
+            </div>
+
+            <h3 class="section-title" data-i18n="legend.title">Forklaring</h3>
+            <div class="event-item legend-box">
+                <div data-i18n="legend.crossingLine">Raud stipla linje = Stad-kryssingslinje</div>
+                <div data-i18n="legend.eastZone">Gul sirkel = Austleg ventesone</div>
+                <div data-i18n="legend.westZone">Grøn sirkel = Vestleg ventesone</div>
+                <div data-i18n="legend.yellowDots">Gule prikkar = Kryssingar aust→vest</div>
+                <div data-i18n="legend.greenDots">Grøne prikkar = Kryssingar vest→aust</div>
+                <div data-i18n="legend.info">Systemet sporer skip som kryssar Stad-halvøya og identifiserer skip som ventar i opne farvatn når vinden er >10 m/s. Data blir samla kvar 12. time for å byggje opp historikk over tid.</div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div id="map"></div>
+            <div class="charts">
+                <div class="chart-container">
+                    <h3 data-i18n="sections.crossingsVsWind">Daglige kryssingar vs vindstyrke</h3>
+                    <canvas id="crossings-chart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 data-i18n="sections.weatherConditions">Værforhold</h3>
+                    <canvas id="weather-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Update UI with translations
+        function updateTranslations() {
+            document.getElementById('page-title').textContent = t('title');
+            document.getElementById('header-title').textContent = '🌊 ' + t('title');
+            document.getElementById('header-subtitle').textContent = t('subtitle');
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t(el.getAttribute('data-i18n'));
+            });
+        }
+
+        updateTranslations();
+
+        // Initialize map centered on Stad with closer zoom
+        const map = L.map('map', {
+            zoomControl: false,
+            dragging: true,
+            scrollWheelZoom: false,
+            doubleClickZoom: false,
+            touchZoom: false
+        }).setView([62.15, 4.92], 10);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        // Fix map size after initialization
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 100);
+
+        // Draw Stad crossing line
+        const stadLine = L.polyline([
+            [62.194513, 5.100380],
+            [62.442407, 4.342984]
+        ], {
+            color: '#ef4444',
+            weight: 3,
+            opacity: 0.7,
+            dashArray: '10, 10'
+        }).addTo(map);
+
+        // Draw waiting zones
+        const eastZone = L.circle([62.25, 5.3], {
+            radius: 10000,
+            color: '#fbbf24',
+            fillColor: '#fbbf24',
+            fillOpacity: 0.1,
+            weight: 2
+        }).addTo(map);
+
+        const westZone = L.circle([62.25, 4.2], {
+            radius: 10000,
+            color: '#34d399',
+            fillColor: '#34d399',
+            fillOpacity: 0.1,
+            weight: 2
+        }).addTo(map);
+
+        // Store ship markers for updates
+        let shipMarkers = [];
+
+        // Create SVG arrow icon for ships
+        function createShipIcon(heading, color, isStationary = false) {
+            const pulse = isStationary ? `<circle cx="12" cy="12" r="10" fill="none" stroke="#fbbf24" stroke-width="2" opacity="0.6"><animate attributeName="r" from="8" to="14" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" from="0.6" to="0" dur="2s" repeatCount="indefinite"/></circle>` : '';
+            const svgIcon = `
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    ${pulse}
+                    <g transform="rotate(${heading || 0} 12 12)">
+                        <path d="M12 2 L16 18 L12 15 L8 18 Z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+                    </g>
+                </svg>
+            `;
+            return L.divIcon({
+                html: svgIcon,
+                className: 'ship-marker',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+        }
+
+        async function loadActiveShips() {
+            const response = await fetch('/api/active-ships');
+            const ships = await response.json();
+
+            // Clear old markers
+            shipMarkers.forEach(marker => map.removeLayer(marker));
+            shipMarkers = [];
+
+            ships.forEach(ship => {
+                // Determine color based on speed
+                const isMoving = (ship.sog || 0) > 3;
+                const color = isMoving ? '#10b981' : '#f59e0b';
+
+                // Use heading or course over ground
+                const heading = ship.heading || ship.cog || 0;
+
+                const marker = L.marker([ship.latitude, ship.longitude], {
+                    icon: createShipIcon(heading, color, !isMoving)
+                }).addTo(map);
+
+                // Format time ago nicely
+                function formatTimeAgo(timestamp) {
+                    const now = new Date();
+                    const then = new Date(timestamp);
+                    const diffMs = now - then;
+                    const diffMins = Math.floor(diffMs / 60000);
+                    const diffHours = Math.floor(diffMs / 3600000);
+                    const diffDays = Math.floor(diffMs / 86400000);
+
+                    if (diffMins < 60) {
+                        return `${diffMins}min sidan`;
+                    } else if (diffHours < 24) {
+                        const mins = diffMins % 60;
+                        return mins > 0 ? `${diffHours}t ${mins}min sidan` : `${diffHours}t sidan`;
+                    } else {
+                        return `${diffDays}d sidan`;
+                    }
+                }
+
+                const timeAgo = formatTimeAgo(ship.timestamp);
+
+                let crossingInfo = '';
+                if (ship.last_crossing_time) {
+                    const crossingTimeAgo = formatTimeAgo(ship.last_crossing_time);
+                    crossingInfo = `<br>Siste kryssing: ${ship.last_direction} (${crossingTimeAgo})`;
+                } else {
+                    crossingInfo = '<br>Har ikkje kryssat Stadt (i databasen)';
+                }
+
+                marker.bindPopup(`
+                    <strong>${ship.name}</strong><br>
+                    ${t('map.type')}: ${ship.ship_type_name}<br>
+                    Fart: ${(ship.sog || 0).toFixed(1)} knop<br>
+                    Kurs: ${(ship.cog || 0).toFixed(0)}°<br>
+                    Sist sett: ${timeAgo}${crossingInfo}
+                `);
+
+                shipMarkers.push(marker);
+            });
+        }
+
+        // Fetch and display data
+        async function loadStats() {
+            const response = await fetch('/api/stats');
+            const stats = await response.json();
+
+            document.getElementById('stat-ships').textContent = stats.total_ships;
+            document.getElementById('stat-crossings').textContent = stats.total_crossings;
+            document.getElementById('stat-waiting').textContent = stats.total_waiting_events;
+            document.getElementById('stat-recent').textContent = stats.recent_crossings_24h;
+
+            // Update last data collection time
+            updateLastUpdated(stats.last_data_collection);
+
+            return stats;
+        }
+
+        async function loadCrossings() {
+            const response = await fetch('/api/crossings');
+            const crossings = await response.json();
+
+            const list = document.getElementById('crossings-list');
+            list.innerHTML = '';
+
+            crossings.slice(0, 20).forEach(crossing => {
+                // Add marker to map
+                const color = crossing.direction === 'E->W' ? '#fbbf24' : '#34d399';
+                const marker = L.circleMarker([crossing.crossing_lat, crossing.crossing_lon], {
+                    radius: 4,
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <strong>${crossing.name}</strong><br>
+                    ${t('map.type')}: ${crossing.ship_type_name}<br>
+                    ${t('map.direction')}: ${crossing.direction}<br>
+                    ${t('map.time')}: ${formatDateTime(crossing.crossing_time)}
+                `);
+
+                // Add to list
+                const item = document.createElement('div');
+                item.className = 'event-item';
+                item.innerHTML = `
+                    <div class="ship-name">${crossing.name}</div>
+                    <div class="time">${formatDateTime(crossing.crossing_time)}</div>
+                    <div class="direction-${crossing.direction.toLowerCase().replace('->', '')}">${crossing.direction} • ${crossing.ship_type_name}</div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        async function loadWaiting() {
+            const response = await fetch('/api/waiting');
+            const waiting = await response.json();
+
+            const list = document.getElementById('waiting-list');
+            list.innerHTML = '';
+
+            if (waiting.length === 0) {
+                list.innerHTML = `<div class="loading">${t('loading.noWaiting')}</div>`;
+                return;
+            }
+
+            waiting.forEach(event => {
+                const item = document.createElement('div');
+                item.className = 'event-item';
+                const crossed = event.crossed ? t('event.crossed') : t('event.didNotCross');
+                const hours = Math.round(event.duration_minutes/60);
+                item.innerHTML = `
+                    <div class="ship-name">${event.name}</div>
+                    <div class="time">${formatDateTime(event.start_time)}</div>
+                    <div>${t('event.zone')}: ${event.zone} • ${hours}t ${t('event.wait')} • ${crossed}</div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        async function loadCharts() {
+            const response = await fetch('/api/daily-stats');
+            const stats = await response.json();
+
+            // Crossings vs Wind chart
+            const ctx1 = document.getElementById('crossings-chart').getContext('2d');
+            new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: stats.map(s => formatDate(s.date)),
+                    datasets: [{
+                        label: 'Kryssingar',
+                        data: stats.map(s => s.total_crossings || 0),
+                        borderColor: '#60a5fa',
+                        backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                        yAxisID: 'y',
+                    }, {
+                        label: 'Snitt vind (m/s)',
+                        data: stats.map(s => s.avg_wind_speed || 0),
+                        borderColor: '#fbbf24',
+                        backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                        yAxisID: 'y1',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { type: 'linear', position: 'left', ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                        y1: { type: 'linear', position: 'right', ticks: { color: '#94a3b8' }, grid: { display: false } },
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                    }
+                }
+            });
+
+            // Weather chart
+            const ctx2 = document.getElementById('weather-chart').getContext('2d');
+            new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: stats.map(s => formatDate(s.date)),
+                    datasets: [{
+                        label: 'Snitt vind (m/s)',
+                        data: stats.map(s => s.avg_wind_speed || null),
+                        borderColor: '#fbbf24',
+                        backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                        yAxisID: 'y',
+                        spanGaps: false
+                    }, {
+                        label: 'Ventehendingar',
+                        data: stats.map(s => s.waiting_events || 0),
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        yAxisID: 'y1',
+                        spanGaps: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8' } }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            ticks: { color: '#94a3b8' },
+                            grid: { color: '#334155' },
+                            beginAtZero: true
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            ticks: { color: '#94a3b8' },
+                            grid: { display: false },
+                            beginAtZero: true
+                        },
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                    }
+                }
+            });
+        }
+
+        async function loadWeather() {
+            try {
+                const response = await fetch('/api/weather');
+                const weather = await response.json();
+
+                const card = document.getElementById('weather-card');
+
+                if (weather.length === 0) {
+                    card.innerHTML = `<div class="loading">${t('weather.noData')}</div>`;
+                    return;
+                }
+
+                const latest = weather[weather.length - 1];
+
+                card.innerHTML = `
+                    <div>
+                        <strong>${t('weather.wind')}:</strong> ${latest.wind_speed ? latest.wind_speed.toFixed(1) : '-'} m/s
+                    </div>
+                    <div>
+                        <strong>${t('weather.gust')}:</strong> ${latest.wind_gust ? latest.wind_gust.toFixed(1) : '-'} m/s
+                    </div>
+                    <div>
+                        <strong>${t('weather.temp')}:</strong> ${latest.air_temperature ? latest.air_temperature.toFixed(1) : '-'} °C
+                    </div>
+                    <div>
+                        ${formatDateTime(latest.timestamp)}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading weather:', error);
+            }
+        }
+
+        // Update last updated time based on data collection time
+        function updateLastUpdated(timestamp) {
+            if (!timestamp) {
+                document.getElementById('update-time').textContent = '-';
+                return;
+            }
+            const dataTime = new Date(timestamp);
+            const day = String(dataTime.getDate()).padStart(2, '0');
+            const month = String(dataTime.getMonth() + 1).padStart(2, '0');
+            const year = dataTime.getFullYear();
+            const hours = String(dataTime.getHours()).padStart(2, '0');
+            const minutes = String(dataTime.getMinutes()).padStart(2, '0');
+            const timeStr = `${day}/${month}/${year} ${hours}:${minutes}`;
+            document.getElementById('update-time').textContent = timeStr;
+        }
+
+        // Load all data
+        async function loadAllData() {
+            const stats = await loadStats();
+            await Promise.all([
+                loadCrossings(),
+                loadWaiting(),
+                loadWeather(),
+                loadActiveShips()
+            ]);
+        }
+
+        loadAllData();
+        loadCharts();
+
+        // Refresh every 60 seconds
+        setInterval(() => {
+            loadAllData();
+        }, 60000);
+    </script>
+</body>
+</html>

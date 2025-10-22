@@ -929,6 +929,75 @@ def print_summary(db):
             logger.info(f'{mmsi:>10} | {name:30} | {zone:5} | {duration:4}min | {crossed_str}')
 
 
+def find_oldest_missing_date(db, lookback_days=14):
+    """
+    Find the oldest date in the last lookback_days that has no position data.
+
+    Returns: datetime object for the oldest missing date, or None if all dates have data
+    """
+    now = datetime.now(timezone.utc)
+    target_start = now - timedelta(days=lookback_days)
+
+    # Get all distinct dates we have data for in the target period
+    db.execute('''
+        SELECT DISTINCT DATE(timestamp) as date
+        FROM positions
+        WHERE timestamp >= %s
+        ORDER BY date
+    ''' if db.use_postgres else '''
+        SELECT DISTINCT DATE(timestamp) as date
+        FROM positions
+        WHERE timestamp >= ?
+        ORDER BY date
+    ''', (target_start,))
+
+    existing_dates = set()
+    for row in db.fetchall():
+        date_val = row[0]
+        if isinstance(date_val, str):
+            date_val = datetime.fromisoformat(date_val).date()
+        existing_dates.add(date_val)
+
+    # Check each day from target_start to now
+    current = target_start.date()
+    today = now.date()
+
+    while current <= today:
+        if current not in existing_dates:
+            # Found oldest missing date
+            return datetime.combine(current, datetime.min.time()).replace(tzinfo=timezone.utc)
+        current += timedelta(days=1)
+
+    # All dates have data
+    return None
+
+
+def determine_fetch_timerange(db):
+    """
+    Determine what time range to fetch based on existing data.
+    Strategy: Fill oldest missing date in last 14 days with 48h window, or fetch recent 48h.
+
+    Returns: (msgtimefrom, msgtimeto) as ISO format strings
+    """
+    now = datetime.now(timezone.utc)
+
+    # Find oldest missing date in last 14 days
+    missing_date = find_oldest_missing_date(db, lookback_days=14)
+
+    if missing_date:
+        # Fetch 48 hours starting from the missing date
+        msgtimefrom = missing_date.strftime('%Y-%m-%dT%H:%M:%S+00:00')
+        msgtimeto = (missing_date + timedelta(hours=48)).strftime('%Y-%m-%dT%H:%M:%S+00:00')
+        logger.info(f"Filling missing data for {missing_date.date()} (48h window)")
+        return msgtimefrom, msgtimeto
+
+    # No missing dates, fetch recent 48 hours
+    logger.info("All dates in last 14 days have data, fetching recent 48 hours")
+    msgtimefrom = (now - timedelta(hours=48)).strftime('%Y-%m-%dT%H:%M:%S+00:00')
+    msgtimeto = now.strftime('%Y-%m-%dT%H:%M:%S+00:00')
+    return msgtimefrom, msgtimeto
+
+
 def main():
     """Main execution"""
     logger.info(f"\n{'='*60}")
@@ -945,10 +1014,8 @@ def main():
         # Authenticate
         access_token = get_access_token()
 
-        # Get MMSI list - use last 14 days (max Barentswatch retention)
-        now = datetime.now(timezone.utc)
-        msgtimefrom = (now - timedelta(days=14)).strftime('%Y-%m-%dT%H:%M:%S+00:00')
-        msgtimeto = now.strftime('%Y-%m-%dT%H:%M:%S+00:00')
+        # Determine time range to fetch (backfill or recent)
+        msgtimefrom, msgtimeto = determine_fetch_timerange(db)
 
         mmsi_list = get_mmsi_list(access_token, msgtimefrom, msgtimeto)
 

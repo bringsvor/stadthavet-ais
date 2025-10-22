@@ -18,7 +18,18 @@
                 <p id="header-subtitle">Sanntidsovervaking av skipstrafikk over Stad-halvøya</p>
             </div>
             <div class="header-right">
-                <a href="/about" class="about-link" data-i18n="nav.about">Om oss</a>
+                <div class="nav-links">
+                    <div class="dropdown">
+                        <button class="nav-link dropdown-btn" data-i18n="webcams.title">Webcams</button>
+                        <div class="dropdown-content">
+                            <a href="https://www.sandsoyveret.com" target="_blank" rel="noopener">📹 Sandsøy</a>
+                            <a href="https://www.seljeseth.com/larsnes/weather/" target="_blank" rel="noopener">📹 Larsnes</a>
+                            <a href="https://www.skylinewebcams.com/webcam/norge/western-norway/stad/vestkapp.html" target="_blank" rel="noopener">📹 Vestkapp</a>
+                            <a href="https://www.skylinewebcams.com/en/webcam/norge/western-norway/maloy/maloy.html" target="_blank" rel="noopener">📹 Måløy</a>
+                        </div>
+                    </div>
+                    <a href="/about" class="nav-link" data-i18n="nav.about">Om oss</a>
+                </div>
                 <div class="header-status" id="last-updated">
                     <div data-i18n="status.lastUpdated">Sist oppdatert:</div>
                     <div id="update-time">-</div>
@@ -103,6 +114,12 @@
 
         updateTranslations();
 
+        // Store initial map view
+        const initialView = {
+            center: [62.25, 4.75],
+            zoom: 9
+        };
+
         // Initialize map centered on Stad with wider zoom
         const map = L.map('map', {
             zoomControl: false,
@@ -110,13 +127,28 @@
             scrollWheelZoom: false,
             doubleClickZoom: false,
             touchZoom: false
-        }).setView([62.25, 4.75], 9);
+        }).setView(initialView.center, initialView.zoom);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
             subdomains: 'abcd',
             maxZoom: 20
         }).addTo(map);
+
+        // Add custom home button control
+        L.Control.HomeButton = L.Control.extend({
+            onAdd: function(map) {
+                const btn = L.DomUtil.create('button', 'home-button');
+                btn.innerHTML = '🏠';
+                btn.title = 'Tilbakestill zoom';
+                btn.onclick = function() {
+                    map.setView(initialView.center, initialView.zoom);
+                };
+                return btn;
+            }
+        });
+
+        new L.Control.HomeButton({ position: 'topleft' }).addTo(map);
 
         // Fix map size after initialization
         setTimeout(() => {
@@ -153,6 +185,7 @@
 
         // Store ship markers for updates
         let shipMarkers = [];
+        let shipMarkersMap = new Map(); // Store ship markers by MMSI
         let crossingMarkers = new Map(); // Store crossing markers by MMSI+timestamp
 
         // Create SVG arrow icon for ships
@@ -181,6 +214,7 @@
             // Clear old markers
             shipMarkers.forEach(marker => map.removeLayer(marker));
             shipMarkers = [];
+            shipMarkersMap.clear();
 
             ships.forEach(ship => {
                 // Determine color based on speed
@@ -232,6 +266,7 @@
                 `);
 
                 shipMarkers.push(marker);
+                shipMarkersMap.set(ship.mmsi, marker);
             });
         }
 
@@ -292,8 +327,17 @@
 
                 // Add click handler to show popup on map
                 item.addEventListener('click', () => {
-                    marker.openPopup();
-                    map.setView([crossing.crossing_lat, crossing.crossing_lon], 11);
+                    // Try to find current ship position marker first
+                    const shipMarker = shipMarkersMap.get(crossing.mmsi);
+                    if (shipMarker) {
+                        // Show ship's current position
+                        shipMarker.openPopup();
+                        map.setView(shipMarker.getLatLng(), 11);
+                    } else {
+                        // Fall back to crossing point if ship not currently visible
+                        marker.openPopup();
+                        map.setView([crossing.crossing_lat, crossing.crossing_lon], 11);
+                    }
                 });
 
                 list.appendChild(item);

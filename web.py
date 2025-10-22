@@ -244,7 +244,7 @@ def api_active_ships():
     conn = get_db()
     cursor = conn.cursor()
 
-    # Get latest position for each ship in the last 6 hours with last crossing info
+    # Get latest position for each ship in the last 48 hours with last crossing info
     cursor.execute('''
         WITH latest_positions AS (
             SELECT
@@ -257,7 +257,7 @@ def api_active_ships():
                 p.timestamp,
                 ROW_NUMBER() OVER (PARTITION BY p.mmsi ORDER BY p.timestamp DESC) as rn
             FROM positions p
-            WHERE p.timestamp > datetime('now', '-6 hours')
+            WHERE p.timestamp > datetime('now', '-48 hours')
         ),
         last_crossings AS (
             SELECT
@@ -298,7 +298,7 @@ def api_active_ships():
                 p.timestamp,
                 ROW_NUMBER() OVER (PARTITION BY p.mmsi ORDER BY p.timestamp DESC) as rn
             FROM positions p
-            WHERE p.timestamp > NOW() - INTERVAL '6 hours'
+            WHERE p.timestamp > NOW() - INTERVAL '48 hours'
         ),
         last_crossings AS (
             SELECT

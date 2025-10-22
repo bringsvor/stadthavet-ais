@@ -43,7 +43,13 @@ body {
     gap: 20px;
 }
 
-.about-link {
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.nav-link {
     color: #60a5fa;
     text-decoration: none;
     font-size: 14px;
@@ -51,11 +57,70 @@ body {
     border: 1px solid #60a5fa;
     border-radius: 6px;
     transition: all 0.2s;
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
 }
 
-.about-link:hover {
+.nav-link:hover {
     background: #60a5fa;
     color: #fff;
+}
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-btn {
+    border: 1px solid #60a5fa;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: #1e293b;
+    min-width: 200px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+    border-radius: 6px;
+    z-index: 1001;
+    border: 1px solid #334155;
+}
+
+.dropdown-content::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 0;
+    right: 0;
+    height: 6px;
+}
+
+.dropdown-content a {
+    color: #60a5fa;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.dropdown-content a:first-child {
+    border-radius: 6px 6px 0 0;
+}
+
+.dropdown-content a:last-child {
+    border-radius: 0 0 6px 6px;
+}
+
+.dropdown-content a:hover {
+    background: #334155;
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
 }
 
 .header-status {
@@ -126,6 +191,31 @@ body {
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     background: #0f172a;
     flex-shrink: 0;
+    position: relative;
+}
+
+.home-button {
+    background: #1e293b;
+    border: 2px solid #60a5fa;
+    border-radius: 6px;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.home-button:hover {
+    background: #60a5fa;
+    transform: scale(1.05);
+}
+
+.home-button:active {
+    transform: scale(0.95);
 }
 
 .charts {

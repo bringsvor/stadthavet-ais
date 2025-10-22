@@ -41,6 +41,9 @@ const translations = {
             temp: "Temperatur",
             noData: "Ingen værdata tilgjengeleg"
         },
+        webcams: {
+            title: "Webcams i området"
+        },
         legend: {
             title: "Forklaring",
             crossingLine: "Raud stipla linje = Stad-kryssingslinje",
@@ -48,7 +51,7 @@ const translations = {
             westZone: "Grøn sirkel = Vestleg ventesone (venter på å krysse austover)",
             yellowDots: "Gule prikkar = Kryssingar aust→vest",
             greenDots: "Grøne prikkar = Kryssingar vest→aust",
-            info: "Systemet sporer skip som kryssar Stad-halvøya og identifiserer skip som ventar i opne farvatn når vinden er >10 m/s. Data blir samla kvar 12. time for å byggje opp historikk over tid."
+            info: "Systemet sporer skip som passerer Stad og identifiserer skip som ventar i opne farvatn når vinden er >10 m/s. Data blir samla kvar 12. time for å byggje opp historikk over tid."
         },
         status: {
             lastUpdated: "Sist oppdatert:"
@@ -98,6 +101,9 @@ const translations = {
             temp: "Temperature",
             noData: "No weather data available"
         },
+        webcams: {
+            title: "Webcams in the Area"
+        },
         legend: {
             title: "Legend",
             crossingLine: "Red dashed line = Stad crossing line",
@@ -105,7 +111,7 @@ const translations = {
             westZone: "Green circle = West waiting zone (waiting to cross eastward)",
             yellowDots: "Yellow dots = Eastward→Westward crossings",
             greenDots: "Green dots = Westward→Eastward crossings",
-            info: "The system tracks ships crossing the Stad peninsula and identifies ships waiting in open water when wind is >10 m/s. Data is collected every 12 hours to build up history over time."
+            info: "The system tracks ships passing by Stad and identifies ships waiting in open water when wind is >10 m/s. Data is collected every 12 hours to build up history over time."
         },
         status: {
             lastUpdated: "Last updated:"

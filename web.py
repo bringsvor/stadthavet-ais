@@ -127,6 +127,33 @@ def api_stats():
     row = cursor.fetchone()
     last_data_time = row['max_time'] if USE_POSTGRES else row[0]
 
+    # Top 10 ships by crossings
+    cursor.execute('''
+        SELECT s.mmsi, s.name, s.ship_type_name, COUNT(*) as crossing_count
+        FROM crossings c
+        JOIN ships s ON c.mmsi = s.mmsi
+        GROUP BY s.mmsi, s.name, s.ship_type_name
+        ORDER BY crossing_count DESC
+        LIMIT 10
+    ''')
+
+    top_ships = []
+    for row in cursor.fetchall():
+        if USE_POSTGRES:
+            top_ships.append({
+                'mmsi': row['mmsi'],
+                'name': row['name'],
+                'ship_type': row['ship_type_name'],
+                'crossings': row['crossing_count']
+            })
+        else:
+            top_ships.append({
+                'mmsi': row[0],
+                'name': row[1],
+                'ship_type': row[2],
+                'crossings': row[3]
+            })
+
     conn.close()
 
     return jsonify({
@@ -136,7 +163,8 @@ def api_stats():
         'avg_waiting_time_minutes': round(avg_wait, 1),
         'total_positions': total_positions,
         'recent_crossings_24h': recent_crossings,
-        'last_data_collection': last_data_time
+        'last_data_collection': last_data_time,
+        'top_ships_by_crossings': top_ships
     })
 
 @app.route('/api/crossings')

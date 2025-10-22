@@ -597,8 +597,9 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto):
     prev_pos = None
     positions_stored = 0
     positions_filtered = 0
+    last_position = None  # Track last position to always store it
 
-    for pos in positions:
+    for i, pos in enumerate(positions):
         lat = pos.get('latitude')
         lon = pos.get('longitude')
         timestamp = pos.get('msgtime')
@@ -607,9 +608,12 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto):
         heading = pos.get('trueHeading')
 
         if lat is not None and lon is not None:
-            # Only store positions within 50km of Stad line
+            # Check if this is the last position
+            is_last_position = (i == len(positions) - 1)
+
+            # Only store positions within 50km of Stad line, OR the last position (for map display)
             distance = distance_to_stad_line(lat, lon)
-            if distance <= 50:
+            if distance <= 50 or is_last_position:
                 # Store position
                 db.execute('''
                     INSERT INTO positions (mmsi, timestamp, latitude, longitude, sog, cog, heading)
@@ -620,6 +624,8 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto):
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (mmsi, timestamp, lat, lon, sog, cog, heading))
                 positions_stored += 1
+                if is_last_position and distance > 50:
+                    logger.debug(f"  Stored last position even though >50km from Stad")
             else:
                 positions_filtered += 1
 
@@ -1020,26 +1026,29 @@ def find_oldest_missing_date(db, lookback_days=14):
 def determine_fetch_timerange(db):
     """
     Determine what time range to fetch based on existing data.
-    Strategy: Fill oldest missing date in last 14 days with 48h window, or fetch recent 48h.
+    Strategy: Fetch recent 48h, AND backfill oldest missing date if found.
 
     Returns: (msgtimefrom, msgtimeto) as ISO format strings
     """
     now = datetime.now(timezone.utc)
 
-    # Find oldest missing date in last 14 days
+    # Find oldest missing date in last 14 days (excluding last 2 days which we'll fetch anyway)
     missing_date = find_oldest_missing_date(db, lookback_days=14)
 
-    if missing_date:
-        # Fetch 48 hours starting from the missing date
+    # Check if missing date is older than 2 days (to avoid overlap with recent 48h fetch)
+    two_days_ago = now - timedelta(days=2)
+
+    if missing_date and missing_date < two_days_ago:
+        # Backfill mode: fetch old missing date
         msgtimefrom = missing_date.strftime('%Y-%m-%dT%H:%M:%S+00:00')
         msgtimeto = (missing_date + timedelta(hours=48)).strftime('%Y-%m-%dT%H:%M:%S+00:00')
-        logger.info(f"Filling missing data for {missing_date.date()} (48h window)")
+        logger.info(f"Backfilling missing data for {missing_date.date()} (48h window)")
         return msgtimefrom, msgtimeto
 
-    # No missing dates, fetch recent 48 hours
-    logger.info("All dates in last 14 days have data, fetching recent 48 hours")
+    # Normal mode: fetch recent 48 hours to keep data current
     msgtimefrom = (now - timedelta(hours=48)).strftime('%Y-%m-%dT%H:%M:%S+00:00')
     msgtimeto = now.strftime('%Y-%m-%dT%H:%M:%S+00:00')
+    logger.info(f"Fetching recent 48 hours (current data)")
     return msgtimefrom, msgtimeto
 
 

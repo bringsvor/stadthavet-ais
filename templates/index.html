@@ -42,6 +42,7 @@
                             <a href="https://www.skylinewebcams.com/en/webcam/norge/western-norway/maloy/maloy.html" target="_blank" rel="noopener">📹 Måløy</a>
                         </div>
                     </div>
+                    <button class="nav-link" id="stats-btn" data-i18n="nav.statistics">📊 Statistikk</button>
                     <a href="/about" class="nav-link" data-i18n="nav.about">Om oss</a>
                 </div>
                 <div class="header-status" id="last-updated">
@@ -539,5 +540,103 @@
             loadAllData();
         }, 60000);
     </script>
+
+    <!-- Statistics Modal -->
+    <div id="stats-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-i18n="stats.modalTitle">📊 Statistikk</h2>
+                <button id="stats-close" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="stats-summary">
+                    <div class="stat-item">
+                        <div class="stat-value" id="modal-total-ships">-</div>
+                        <div class="stat-label" data-i18n="stats.totalShips">Skip totalt</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="modal-total-crossings">-</div>
+                        <div class="stat-label" data-i18n="stats.crossings">Kryssingar</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="modal-recent-24h">-</div>
+                        <div class="stat-label" data-i18n="stats.last24h">Siste 24t</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="modal-total-positions">-</div>
+                        <div class="stat-label" data-i18n="stats.positions">Posisjonar</div>
+                    </div>
+                </div>
+
+                <h3 data-i18n="stats.topShips">🏆 Topp 10 skip etter kryssingar</h3>
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th data-i18n="table.shipName">Namn</th>
+                            <th data-i18n="table.shipType">Type</th>
+                            <th data-i18n="table.crossings">Kryssingar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="top-ships-tbody">
+                        <tr><td colspan="4"><span data-i18n="loading.stats">Lastar...</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Statistics modal functionality
+        const statsBtn = document.getElementById('stats-btn');
+        const statsModal = document.getElementById('stats-modal');
+        const statsClose = document.getElementById('stats-close');
+
+        statsBtn.addEventListener('click', () => {
+            loadStatsModal();
+            statsModal.style.display = 'flex';
+        });
+
+        statsClose.addEventListener('click', () => {
+            statsModal.style.display = 'none';
+        });
+
+        statsModal.addEventListener('click', (e) => {
+            if (e.target === statsModal) {
+                statsModal.style.display = 'none';
+            }
+        });
+
+        async function loadStatsModal() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+
+                // Update total stats
+                document.getElementById('modal-total-ships').textContent = data.total_ships;
+                document.getElementById('modal-total-crossings').textContent = data.total_crossings;
+                document.getElementById('modal-recent-24h').textContent = data.recent_crossings_24h;
+                document.getElementById('modal-total-positions').textContent = data.total_positions.toLocaleString();
+
+                // Update top 10 ships table
+                const tbody = document.getElementById('top-ships-tbody');
+                tbody.innerHTML = '';
+
+                data.top_ships_by_crossings.forEach((ship, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${ship.name}</td>
+                        <td>${ship.ship_type || '-'}</td>
+                        <td>${ship.crossings}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+    </script>
+
 </body>
 </html>

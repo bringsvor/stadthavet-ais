@@ -7,7 +7,15 @@ const translations = {
             totalShips: "Skip totalt",
             crossings: "Kryssingar",
             waitingEvents: "Ventehendingar",
-            last24h: "Siste 24t"
+            last24h: "Siste 24t",
+            positions: "Posisjonar",
+            modalTitle: "📊 Statistikk",
+            topShips: "🏆 Topp 10 skip etter kryssingar"
+        },
+        table: {
+            shipName: "Namn",
+            shipType: "Type",
+            crossings: "Kryssingar"
         },
         sections: {
             recentCrossings: "Siste kryssingar",
@@ -18,7 +26,8 @@ const translations = {
         loading: {
             crossings: "Lastar kryssingar...",
             waiting: "Lastar ventehendingar...",
-            noWaiting: "Ingen ventehendingar registrert"
+            noWaiting: "Ingen ventehendingar registrert",
+            stats: "Lastar..."
         },
         info: {
             clickToView: "Klikk på eit skip for å sjå det i kartet"
@@ -57,7 +66,8 @@ const translations = {
             lastUpdated: "Sist oppdatert:"
         },
         nav: {
-            about: "Om oss"
+            about: "Om oss",
+            statistics: "📊 Statistikk"
         }
     },
     en: {
@@ -67,7 +77,15 @@ const translations = {
             totalShips: "Total Ships",
             crossings: "Crossings",
             waitingEvents: "Waiting Events",
-            last24h: "Last 24h"
+            last24h: "Last 24h",
+            positions: "Positions",
+            modalTitle: "📊 Statistics",
+            topShips: "🏆 Top 10 Ships by Crossings"
+        },
+        table: {
+            shipName: "Name",
+            shipType: "Type",
+            crossings: "Crossings"
         },
         sections: {
             recentCrossings: "Recent Crossings",
@@ -78,7 +96,8 @@ const translations = {
         loading: {
             crossings: "Loading crossings...",
             waiting: "Loading waiting events...",
-            noWaiting: "No waiting events recorded"
+            noWaiting: "No waiting events recorded",
+            stats: "Loading..."
         },
         info: {
             clickToView: "Click on a ship to view it on the map"
@@ -117,7 +136,8 @@ const translations = {
             lastUpdated: "Last updated:"
         },
         nav: {
-            about: "About"
+            about: "About",
+            statistics: "📊 Statistics"
         }
     }
 };

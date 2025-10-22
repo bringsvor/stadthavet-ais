@@ -6,14 +6,14 @@ Dette er eit system for å spore skipstrafikk som kryssar Stad-halvøya i Noreg.
 
 ## Kvifor?
 
-Stad Skipstunnell er eit planlagt prosjekt for å byggje verdas første skipstunnel gjennom Stad-halvøya. Det offentlege ordskiftet fokuserer mykje på kor mykje tid skip brukar på å vente på betre vêr før dei kan krysse Stad.
+Stad Skipstunnel er eit planlagt prosjekt for å byggje verdas første skipstunnel gjennom Stad-halvøya. Det offentlege ordskiftet fokuserer mykje på kor mykje tid skip brukar på å vente på betre vêr før dei kan krysse Stad.
 
 Dette systemet prøver å kvantifisere:
 - Kor mange skip kryssar Stad dagleg
 - Kor mange skip ventar i opne farvatn på grunn av dårleg vêr (vind >10 m/s)
 - Samanhengen mellom tal på kryssingar og vêrforhold
 
-Dette er eit hobbyprosjekt og er i ein tidleg fase. Det er difor ikkje råd å konkludere noko som helst om kost nytte av tunellen.
+Dette er eit hobbyprosjekt og er i ein tidleg fase. Det er difor ikkje råd å konkludere noko som helst om kost-nytte av tunnelen.
 
 ## Korleis fungerer det?
 

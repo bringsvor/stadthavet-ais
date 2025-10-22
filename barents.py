@@ -783,8 +783,9 @@ def store_weather_data(db, start_time, end_time):
         db.execute('''
             INSERT INTO weather (timestamp, station, wind_speed, wind_direction, wind_gust, air_temperature, pressure)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (station, timestamp) DO NOTHING
         ''' if db.use_postgres else '''
-            INSERT INTO weather (timestamp, station, wind_speed, wind_direction, wind_gust, air_temperature, pressure)
+            INSERT OR IGNORE INTO weather (timestamp, station, wind_speed, wind_direction, wind_gust, air_temperature, pressure)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (obs.get('timestamp'), obs.get('station'), obs.get('wind_speed'),
               obs.get('wind_direction'), obs.get('wind_gust'),

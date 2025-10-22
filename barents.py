@@ -168,7 +168,8 @@ class Database:
                     sog REAL,
                     cog REAL,
                     heading INTEGER,
-                    FOREIGN KEY (mmsi) REFERENCES ships(mmsi)
+                    FOREIGN KEY (mmsi) REFERENCES ships(mmsi),
+                    UNIQUE (mmsi, timestamp)
                 )
             ''')
 
@@ -180,7 +181,8 @@ class Database:
                     crossing_lat REAL,
                     crossing_lon REAL,
                     direction TEXT,
-                    FOREIGN KEY (mmsi) REFERENCES ships(mmsi)
+                    FOREIGN KEY (mmsi) REFERENCES ships(mmsi),
+                    UNIQUE (mmsi, crossing_time)
                 )
             ''')
 
@@ -522,14 +524,7 @@ def parse_weather_observations(weather_data):
 def fetch_and_store_track(db, access_token, mmsi):
     """Fetch track data for a single MMSI and store in database"""
 
-    # Check if we already have recent data for this MMSI
-    db.execute('SELECT COUNT(*) FROM positions WHERE mmsi = %s' if db.use_postgres
-               else 'SELECT COUNT(*) FROM positions WHERE mmsi = ?', (mmsi,))
-
-    if db.fetchone()[0] > 0:
-        return False  # Already have data
-
-    # Fetch track from API
+    # Fetch track from API (we'll check for duplicates when inserting)
     url = f"{CONFIG['track_url']}/{mmsi}"
     headers = {
         'Authorization': f'Bearer {access_token}',
@@ -587,8 +582,9 @@ def fetch_and_store_track(db, access_token, mmsi):
             db.execute('''
                 INSERT INTO positions (mmsi, timestamp, latitude, longitude, sog, cog, heading)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (mmsi, timestamp) DO NOTHING
             ''' if db.use_postgres else '''
-                INSERT INTO positions (mmsi, timestamp, latitude, longitude, sog, cog, heading)
+                INSERT OR IGNORE INTO positions (mmsi, timestamp, latitude, longitude, sog, cog, heading)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (mmsi, timestamp, lat, lon, sog, cog, heading))
 
@@ -605,8 +601,9 @@ def fetch_and_store_track(db, access_token, mmsi):
                     db.execute('''
                         INSERT INTO crossings (mmsi, crossing_time, crossing_lat, crossing_lon, direction)
                         VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (mmsi, crossing_time) DO NOTHING
                     ''' if db.use_postgres else '''
-                        INSERT INTO crossings (mmsi, crossing_time, crossing_lat, crossing_lon, direction)
+                        INSERT OR IGNORE INTO crossings (mmsi, crossing_time, crossing_lat, crossing_lon, direction)
                         VALUES (?, ?, ?, ?, ?)
                     ''', (mmsi, timestamp, lat, lon, direction))
 
@@ -947,9 +944,9 @@ def main():
         # Authenticate
         access_token = get_access_token()
 
-        # Get MMSI list - use last 24-48 hours since that's what the API supports
+        # Get MMSI list - use last 14 days (max Barentswatch retention)
         now = datetime.now(timezone.utc)
-        msgtimefrom = (now - timedelta(hours=48)).strftime('%Y-%m-%dT%H:%M:%S+00:00')
+        msgtimefrom = (now - timedelta(days=14)).strftime('%Y-%m-%dT%H:%M:%S+00:00')
         msgtimeto = now.strftime('%Y-%m-%dT%H:%M:%S+00:00')
 
         mmsi_list = get_mmsi_list(access_token, msgtimefrom, msgtimeto)

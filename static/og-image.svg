@@ -1,0 +1,9 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#1e3a8a"/>
+  <text x="600" y="280" font-family="Arial, sans-serif" font-size="72" fill="#ffffff" text-anchor="middle" font-weight="bold">
+    🌊 Stadthavet AIS Sporing
+  </text>
+  <text x="600" y="360" font-family="Arial, sans-serif" font-size="36" fill="#94a3b8" text-anchor="middle">
+    Skipstrafikk over Stad-halvøya
+  </text>
+</svg>

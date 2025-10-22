@@ -55,7 +55,7 @@ CONFIG = {
     'client_secret': os.environ.get('BARENTSWATCH_CLIENT_SECRET'),
     'auth_url': 'https://id.barentswatch.no/connect/token',
     'mmsi_area_url': 'https://historic.ais.barentswatch.no/v1/historic/mmsiinarea',
-    'track_url': 'https://historic.ais.barentswatch.no/v1/historic/trackslast24hours',
+    'track_url': 'https://historic.ais.barentswatch.no/v1/historic/tracks',
 
     # Stadthavet bounding box
     'area_nw': (62.8, 4.5),  # (lat, lon) Northwest corner
@@ -521,11 +521,11 @@ def parse_weather_observations(weather_data):
     return observations
 
 
-def fetch_and_store_track(db, access_token, mmsi):
+def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto):
     """Fetch track data for a single MMSI and store in database"""
 
-    # Fetch track from API (we'll check for duplicates when inserting)
-    url = f"{CONFIG['track_url']}/{mmsi}"
+    # Fetch track from API with date range
+    url = f"{CONFIG['track_url']}/{mmsi}/{msgtimefrom}/{msgtimeto}"
     headers = {
         'Authorization': f'Bearer {access_token}',
         'Content-Type': 'application/json'
@@ -1026,7 +1026,7 @@ def main():
         new_data = 0
 
         for i, mmsi in enumerate(mmsi_list):
-            result = fetch_and_store_track(db, access_token, mmsi)
+            result = fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto)
 
             if result is False:
                 logger.info(f'[{i+1}/{len(mmsi_list)}] MMSI {mmsi} - already in database or no data')

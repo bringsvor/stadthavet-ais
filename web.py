@@ -91,34 +91,41 @@ def api_stats():
     cursor = conn.cursor()
 
     # Overall stats
-    cursor.execute('SELECT COUNT(DISTINCT mmsi) FROM ships')
-    total_ships = cursor.fetchone()[0]
+    cursor.execute('SELECT COUNT(DISTINCT mmsi) as count FROM ships')
+    row = cursor.fetchone()
+    total_ships = row['count'] if USE_POSTGRES else row[0]
 
-    cursor.execute('SELECT COUNT(*) FROM crossings')
-    total_crossings = cursor.fetchone()[0]
+    cursor.execute('SELECT COUNT(*) as count FROM crossings')
+    row = cursor.fetchone()
+    total_crossings = row['count'] if USE_POSTGRES else row[0]
 
-    cursor.execute('SELECT COUNT(*) FROM waiting_events')
-    total_waiting = cursor.fetchone()[0]
+    cursor.execute('SELECT COUNT(*) as count FROM waiting_events')
+    row = cursor.fetchone()
+    total_waiting = row['count'] if USE_POSTGRES else row[0]
 
-    cursor.execute('SELECT AVG(duration_minutes) FROM waiting_events')
-    avg_wait = cursor.fetchone()[0] or 0
+    cursor.execute('SELECT AVG(duration_minutes) as avg FROM waiting_events')
+    row = cursor.fetchone()
+    avg_wait = (row['avg'] if USE_POSTGRES else row[0]) or 0
 
-    cursor.execute('SELECT COUNT(*) FROM positions')
-    total_positions = cursor.fetchone()[0]
+    cursor.execute('SELECT COUNT(*) as count FROM positions')
+    row = cursor.fetchone()
+    total_positions = row['count'] if USE_POSTGRES else row[0]
 
     # Recent activity (last 24 hours)
     cursor.execute('''
-        SELECT COUNT(*) FROM crossings
+        SELECT COUNT(*) as count FROM crossings
         WHERE crossing_time > datetime('now', '-24 hours')
     ''' if not USE_POSTGRES else '''
-        SELECT COUNT(*) FROM crossings
+        SELECT COUNT(*) as count FROM crossings
         WHERE crossing_time > NOW() - INTERVAL '24 hours'
     ''')
-    recent_crossings = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    recent_crossings = row['count'] if USE_POSTGRES else row[0]
 
     # Get last data collection time (newest position timestamp)
-    cursor.execute('SELECT MAX(timestamp) FROM positions')
-    last_data_time = cursor.fetchone()[0]
+    cursor.execute('SELECT MAX(timestamp) as max_time FROM positions')
+    row = cursor.fetchone()
+    last_data_time = row['max_time'] if USE_POSTGRES else row[0]
 
     conn.close()
 

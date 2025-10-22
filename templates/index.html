@@ -49,6 +49,7 @@
             </div>
 
             <h3 class="section-title" data-i18n="sections.recentCrossings">Siste kryssingar</h3>
+            <p class="info-text" data-i18n="info.clickToView">Klikk på eit skip for å sjå det i kartet</p>
             <div class="event-list" id="crossings-list">
                 <div class="loading" data-i18n="loading.crossings">Lastar kryssingar...</div>
             </div>
@@ -102,14 +103,14 @@
 
         updateTranslations();
 
-        // Initialize map centered on Stad with closer zoom
+        // Initialize map centered on Stad with wider zoom
         const map = L.map('map', {
             zoomControl: false,
             dragging: true,
             scrollWheelZoom: false,
             doubleClickZoom: false,
             touchZoom: false
-        }).setView([62.15, 4.92], 10);
+        }).setView([62.25, 4.75], 9);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
@@ -152,6 +153,7 @@
 
         // Store ship markers for updates
         let shipMarkers = [];
+        let crossingMarkers = new Map(); // Store crossing markers by MMSI+timestamp
 
         // Create SVG arrow icon for ships
         function createShipIcon(heading, color, isStationary = false) {
@@ -255,6 +257,7 @@
 
             const list = document.getElementById('crossings-list');
             list.innerHTML = '';
+            crossingMarkers.clear();
 
             crossings.slice(0, 20).forEach(crossing => {
                 // Add marker to map
@@ -274,14 +277,25 @@
                     ${t('map.time')}: ${formatDateTime(crossing.crossing_time)}
                 `);
 
+                // Store marker reference
+                const markerId = `${crossing.mmsi}-${crossing.crossing_time}`;
+                crossingMarkers.set(markerId, marker);
+
                 // Add to list
                 const item = document.createElement('div');
-                item.className = 'event-item';
+                item.className = 'event-item clickable';
                 item.innerHTML = `
                     <div class="ship-name">${crossing.name}</div>
                     <div class="time">${formatDateTime(crossing.crossing_time)}</div>
                     <div class="direction-${crossing.direction.toLowerCase().replace('->', '')}">${crossing.direction} • ${crossing.ship_type_name}</div>
                 `;
+
+                // Add click handler to show popup on map
+                item.addEventListener('click', () => {
+                    marker.openPopup();
+                    map.setView([crossing.crossing_lat, crossing.crossing_lon], 11);
+                });
+
                 list.appendChild(item);
             });
         }
@@ -338,6 +352,7 @@
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: { legend: { labels: { color: '#94a3b8' } } },
                     scales: {
@@ -372,6 +387,7 @@
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: { labels: { color: '#94a3b8' } }

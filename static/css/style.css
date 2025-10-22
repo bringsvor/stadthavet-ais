@@ -135,17 +135,21 @@ body {
     background: #1e293b;
     border-radius: 12px;
     padding: 20px;
-    height: 400px;
+    min-height: 400px;
+    max-height: 400px;
+    overflow: hidden;
 }
 
 .chart-container {
     display: flex;
     flex-direction: column;
+    min-width: 0; /* Prevent overflow */
 }
 
 .chart-container canvas {
     flex: 1;
     max-height: 320px;
+    max-width: 100%;
 }
 
 .chart-container h3 {
@@ -165,6 +169,15 @@ body {
     border-radius: 6px;
     margin-bottom: 8px;
     font-size: 13px;
+}
+
+.event-item.clickable {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.event-item.clickable:hover {
+    background: #475569;
 }
 
 .event-item .ship-name {
@@ -189,6 +202,13 @@ body {
     font-size: 18px;
     margin: 20px 0 12px 0;
     color: #94a3b8;
+}
+
+.info-text {
+    font-size: 11px;
+    color: #64748b;
+    margin: -8px 0 8px 0;
+    font-style: italic;
 }
 
 ::-webkit-scrollbar {
@@ -232,13 +252,14 @@ body {
 
 .legend-box {
     background: #1e293b;
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.8;
 }
 
 .legend-box > div:last-child {
     margin-top: 10px;
     color: #94a3b8;
+    font-size: 13px;
 }
 
 .ship-marker {

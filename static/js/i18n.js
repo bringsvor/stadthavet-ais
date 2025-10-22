@@ -20,6 +20,9 @@ const translations = {
             waiting: "Lastar ventehendingar...",
             noWaiting: "Ingen ventehendingar registrert"
         },
+        info: {
+            clickToView: "Klikk på eit skip for å sjå det i kartet"
+        },
         map: {
             direction: "Retning",
             type: "Type",
@@ -73,6 +76,9 @@ const translations = {
             crossings: "Loading crossings...",
             waiting: "Loading waiting events...",
             noWaiting: "No waiting events recorded"
+        },
+        info: {
+            clickToView: "Click on a ship to view it on the map"
         },
         map: {
             direction: "Direction",

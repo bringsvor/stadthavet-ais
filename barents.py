@@ -687,8 +687,17 @@ def detect_waiting_events(db):
                     # Calculate waiting duration
                     waiting_end = timestamp
                     try:
-                        start_dt = datetime.fromisoformat(waiting_start.replace('+00:00', '+00:00'))
-                        end_dt = datetime.fromisoformat(waiting_end.replace('+00:00', '+00:00'))
+                        # Handle both string and datetime objects
+                        if isinstance(waiting_start, str):
+                            start_dt = datetime.fromisoformat(waiting_start.replace('Z', '+00:00'))
+                        else:
+                            start_dt = waiting_start
+
+                        if isinstance(waiting_end, str):
+                            end_dt = datetime.fromisoformat(waiting_end.replace('Z', '+00:00'))
+                        else:
+                            end_dt = waiting_end
+
                         duration_minutes = int((end_dt - start_dt).total_seconds() / 60)
 
                         # Check if duration meets threshold

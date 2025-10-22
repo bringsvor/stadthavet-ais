@@ -51,8 +51,8 @@ else:
 
 # Configuration
 CONFIG = {
-    'client_id': os.environ.get('BARENTSWATCH_CLIENT_ID', 'bringsvor@bringsvor.com:tunell1'),
-    'client_secret': os.environ.get('BARENTSWATCH_CLIENT_SECRET', 'hemmelegvemmeleg'),
+    'client_id': os.environ.get('BARENTSWATCH_CLIENT_ID'),
+    'client_secret': os.environ.get('BARENTSWATCH_CLIENT_SECRET'),
     'auth_url': 'https://id.barentswatch.no/connect/token',
     'mmsi_area_url': 'https://historic.ais.barentswatch.no/v1/historic/mmsiinarea',
     'track_url': 'https://historic.ais.barentswatch.no/v1/historic/trackslast24hours',

@@ -5,6 +5,9 @@ services:
     env: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python web.py"
+    databases:
+      - name: stadthavet-db
+        property: DATABASE_URL
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
@@ -12,7 +15,6 @@ services:
         value: true
       - key: ALLOWED_ORIGINS
         value: https://stad.bringsvor.com
-      # Database URL will be auto-injected if you create a PostgreSQL database
       # BARENTSWATCH_CLIENT_ID, BARENTSWATCH_CLIENT_SECRET, MET_CLIENT_ID
       # need to be added manually in Render dashboard as secret env vars
 
@@ -23,6 +25,9 @@ services:
     schedule: "0 */12 * * *"  # At minute 0 past every 12th hour
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python barents.py"
+    databases:
+      - name: stadthavet-db
+        property: DATABASE_URL
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9

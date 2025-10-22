@@ -57,9 +57,10 @@ CONFIG = {
     'mmsi_area_url': 'https://historic.ais.barentswatch.no/v1/historic/mmsiinarea',
     'track_url': 'https://historic.ais.barentswatch.no/v1/historic/tracks',
 
-    # Stadthavet bounding box
-    'area_nw': (62.8, 4.5),  # (lat, lon) Northwest corner
-    'area_se': (61.8, 7.0),  # (lat, lon) Southeast corner
+    # Stadthavet bounding box - reduced to ~50km around Stad line
+    # Stad line runs from (62.19, 5.10) to (62.44, 4.34)
+    'area_nw': (62.75, 4.0),   # (lat, lon) Northwest corner - ~50km margin
+    'area_se': (61.85, 5.5),   # (lat, lon) Southeast corner - ~50km margin
 
     # Stad peninsula crossing line
     'stad_line_start': (5.100380, 62.194513),  # (lon, lat)
@@ -457,6 +458,28 @@ def is_in_waiting_zone(lat, lon, zone_config):
     return distance <= zone_config['radius_km']
 
 
+def distance_to_stad_line(lat, lon):
+    """
+    Calculate minimum distance from a point to the Stad crossing line.
+    Returns distance in kilometers.
+    """
+    # Get endpoints of Stad line
+    lon1, lat1 = CONFIG['stad_line_start']
+    lon2, lat2 = CONFIG['stad_line_end']
+
+    # Calculate distance to both endpoints
+    dist_to_start = haversine_distance(lat, lon, lat1, lon1)
+    dist_to_end = haversine_distance(lat, lon, lat2, lon2)
+
+    # Calculate distance to midpoint (approximate distance to line)
+    mid_lat = (lat1 + lat2) / 2
+    mid_lon = (lon1 + lon2) / 2
+    dist_to_mid = haversine_distance(lat, lon, mid_lat, mid_lon)
+
+    # Return minimum distance to line (simplified - uses closest of start/mid/end)
+    return min(dist_to_start, dist_to_mid, dist_to_end)
+
+
 def fetch_weather_data(start_time, end_time):
     """Fetch weather data from met.no Frost API"""
     # Frost API requires ISO format timestamps
@@ -523,6 +546,8 @@ def parse_weather_observations(weather_data):
 
 def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto):
     """Fetch track data for a single MMSI and store in database"""
+    import time
+    start_time = time.time()
 
     # Fetch track from API with date range
     url = f"{CONFIG['track_url']}/{mmsi}/{msgtimefrom}/{msgtimeto}"
@@ -531,7 +556,9 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto):
         'Content-Type': 'application/json'
     }
 
+    api_start = time.time()
     response = requests.get(url, headers=headers)
+    api_time = time.time() - api_start
 
     if response.status_code != 200:
         return False
@@ -568,6 +595,8 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto):
     # Process positions and check for crossings
     crossings_detected = 0
     prev_pos = None
+    positions_stored = 0
+    positions_filtered = 0
 
     for pos in positions:
         lat = pos.get('latitude')
@@ -578,15 +607,21 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto):
         heading = pos.get('trueHeading')
 
         if lat is not None and lon is not None:
-            # Store position
-            db.execute('''
-                INSERT INTO positions (mmsi, timestamp, latitude, longitude, sog, cog, heading)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (mmsi, timestamp) DO NOTHING
-            ''' if db.use_postgres else '''
-                INSERT OR IGNORE INTO positions (mmsi, timestamp, latitude, longitude, sog, cog, heading)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (mmsi, timestamp, lat, lon, sog, cog, heading))
+            # Only store positions within 50km of Stad line
+            distance = distance_to_stad_line(lat, lon)
+            if distance <= 50:
+                # Store position
+                db.execute('''
+                    INSERT INTO positions (mmsi, timestamp, latitude, longitude, sog, cog, heading)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (mmsi, timestamp) DO NOTHING
+                ''' if db.use_postgres else '''
+                    INSERT OR IGNORE INTO positions (mmsi, timestamp, latitude, longitude, sog, cog, heading)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (mmsi, timestamp, lat, lon, sog, cog, heading))
+                positions_stored += 1
+            else:
+                positions_filtered += 1
 
             # Check for Stad crossing
             if prev_pos is not None:
@@ -612,8 +647,18 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto):
 
             prev_pos = pos
 
+    db_start = time.time()
     db.commit()
-    return True, ship_name, ship_type_name, len(positions), crossings_detected
+    db_time = time.time() - db_start
+
+    total_time = time.time() - start_time
+    if total_time > 2.0:  # Only log slow operations
+        logger.info(f"  ⏱ Timing: API={api_time:.2f}s, DB={db_time:.2f}s, Total={total_time:.2f}s")
+
+    if positions_filtered > 0:
+        logger.info(f"  📍 Filtered {positions_filtered}/{len(positions)} positions (>50km from Stad)")
+
+    return True, ship_name, ship_type_name, positions_stored, crossings_detected
 
 
 def detect_waiting_events(db):

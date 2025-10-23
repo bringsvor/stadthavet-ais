@@ -11,10 +11,16 @@ logger = logging.getLogger(__name__)
 # Database detection
 USE_POSTGRES = os.environ.get('RENDER') is not None or os.environ.get('DATABASE_URL') is not None
 
-if USE_POSTGRES:
+# Always import both to avoid runtime errors
+try:
     import psycopg2
-else:
+except ImportError:
+    psycopg2 = None
+
+try:
     import sqlite3
+except ImportError:
+    sqlite3 = None
 
 
 class Database:

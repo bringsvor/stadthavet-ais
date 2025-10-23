@@ -4,7 +4,7 @@ services:
     name: stadthavet-ais
     env: python
     region: frankfurt  # EU region closest to Norway
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "pip install -r requirements.txt && pytest tests/ -v"
     startCommand: "python web.py"
     envVars:
       - key: PYTHON_VERSION
@@ -26,7 +26,7 @@ services:
     env: python
     region: frankfurt  # EU region closest to Norway
     schedule: "0 */12 * * *"  # At minute 0 past every 12th hour
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "pip install -r requirements.txt && pytest tests/ -v"
     startCommand: "python barents.py"
     envVars:
       - key: PYTHON_VERSION

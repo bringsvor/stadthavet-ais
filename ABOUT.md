@@ -4,6 +4,8 @@
 
 Dette er eit system for å spore skipstrafikk som kryssar Stad-halvøya i Noreg. Systemet samlar inn data frå Barentswatch sitt AIS API og analyserer skip som kryssar den imaginære linja over Stad.
 
+Foreløpig får vi kun data om nyttefartøy over 15 meter samt fritidsbåtar over 45 meter (!) på grunn av personvernhensyn hjå Kystverket. Men det vert jobba med å få tilgong til data for fleire båtar.
+
 ## Kvifor?
 
 Stad Skipstunnel er eit planlagt prosjekt for å byggje verdas første skipstunnel gjennom Stad-halvøya. Det offentlege ordskiftet fokuserer mykje på kor mykje tid skip brukar på å vente på betre vêr før dei kan krysse Stad.

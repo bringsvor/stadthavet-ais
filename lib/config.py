@@ -100,7 +100,9 @@ SHIP_TYPES = {
     84: 'Tanker (hazardous)',
     90: 'Other', 91: 'Other (hazardous)',
     92: 'Other (hazardous)', 93: 'Other (hazardous)',
-    94: 'Other (hazardous)'
+    94: 'Other (hazardous)',
+    95: 'Other', 96: 'Other', 97: 'Other',
+    98: 'Other', 99: 'Other'
 }
 
 

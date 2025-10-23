@@ -525,3 +525,126 @@ body {
     width: 40px;
 }
 
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .container {
+        grid-template-columns: 1fr;
+        padding: 10px;
+        gap: 15px;
+    }
+
+    .header {
+        padding: 15px;
+    }
+
+    .header h1 {
+        font-size: 22px;
+    }
+
+    .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .header-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .nav-links {
+        gap: 8px;
+    }
+
+    .nav-link {
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+
+    .sidebar {
+        padding: 15px;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .stat-card {
+        padding: 12px;
+    }
+
+    .stat-value {
+        font-size: 24px;
+    }
+
+    .stat-label {
+        font-size: 11px;
+    }
+
+    #map {
+        height: 400px;
+        min-height: 400px;
+        max-height: 400px;
+    }
+
+    .charts {
+        grid-template-columns: 1fr;
+        padding: 15px;
+        min-height: auto;
+        max-height: none;
+    }
+
+    .chart-container canvas {
+        max-height: 250px;
+    }
+
+    .event-list {
+        max-height: 300px;
+    }
+
+    .event-item {
+        padding: 10px;
+        font-size: 12px;
+    }
+
+    .modal-content {
+        width: 95%;
+        max-width: none;
+    }
+
+    .modal-header {
+        padding: 16px;
+    }
+
+    .modal-header h2 {
+        font-size: 20px;
+    }
+
+    .modal-body {
+        padding: 16px;
+    }
+
+    .stats-summary {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .stat-item {
+        padding: 15px;
+    }
+
+    .stat-item .stat-value {
+        font-size: 24px;
+    }
+
+    .stats-table {
+        font-size: 12px;
+    }
+
+    .stats-table th,
+    .stats-table td {
+        padding: 8px 6px;
+    }
+}
+

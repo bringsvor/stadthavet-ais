@@ -30,6 +30,7 @@ CONFIG = {
     'auth_url': 'https://id.barentswatch.no/connect/token',
     'mmsi_area_url': 'https://historic.ais.barentswatch.no/v1/historic/mmsiinarea',
     'track_url': 'https://historic.ais.barentswatch.no/v1/historic/tracks',
+    'latest_url': 'https://live.ais.barentswatch.no/v1/latest',
 
     # Stadthavet bounding box - reduced to ~50km around Stad line
     # Stad line runs from (62.19, 5.10) to (62.44, 4.34)
@@ -95,6 +96,8 @@ SHIP_TYPES = {
     70: 'Cargo', 71: 'Cargo (hazardous)',
     72: 'Cargo (hazardous)', 73: 'Cargo (hazardous)',
     74: 'Cargo (hazardous)',
+    75: 'Cargo', 76: 'Cargo', 77: 'Cargo',
+    78: 'Cargo', 79: 'Cargo',
     80: 'Tanker', 81: 'Tanker (hazardous)',
     82: 'Tanker (hazardous)', 83: 'Tanker (hazardous)',
     84: 'Tanker (hazardous)',

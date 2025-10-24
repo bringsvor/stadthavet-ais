@@ -70,7 +70,8 @@ class Database:
                 destination TEXT,
                 callsign TEXT,
                 length REAL,
-                width REAL
+                width REAL,
+                ship_info_fetched_at TIMESTAMP
             )
         ''')
 
@@ -162,7 +163,8 @@ class Database:
                 destination TEXT,
                 callsign TEXT,
                 length REAL,
-                width REAL
+                width REAL,
+                ship_info_fetched_at TEXT
             )
         ''')
 

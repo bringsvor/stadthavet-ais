@@ -162,11 +162,11 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto, config
         length = None
         width = None
 
-    # Store ship info
+    # Store ship info (and mark that we attempted to fetch ship info)
     if db.use_postgres:
         db.execute('''
-            INSERT INTO ships (mmsi, name, ship_type, ship_type_name, destination, callsign, length, width)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO ships (mmsi, name, ship_type, ship_type_name, destination, callsign, length, width, ship_info_fetched_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
             ON CONFLICT (mmsi) DO UPDATE
             SET name = EXCLUDED.name,
                 ship_type = EXCLUDED.ship_type,
@@ -174,12 +174,13 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto, config
                 destination = EXCLUDED.destination,
                 callsign = EXCLUDED.callsign,
                 length = EXCLUDED.length,
-                width = EXCLUDED.width
+                width = EXCLUDED.width,
+                ship_info_fetched_at = NOW()
         ''', (mmsi, ship_name, ship_type, ship_type_name, destination, callsign, length, width))
     else:
         db.execute('''
-            INSERT OR REPLACE INTO ships (mmsi, name, ship_type, ship_type_name, destination, callsign, length, width)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO ships (mmsi, name, ship_type, ship_type_name, destination, callsign, length, width, ship_info_fetched_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         ''', (mmsi, ship_name, ship_type, ship_type_name, destination, callsign, length, width))
 
     # Process positions and check for crossings

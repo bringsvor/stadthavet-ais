@@ -44,8 +44,8 @@ class TestShipInfoPersistence(unittest.TestCase):
             }
         }
 
-        # Initialize database
-        self.db = Database(self.config)
+        # Initialize database (force SQLite for testing, even on Render)
+        self.db = Database(self.config, use_postgres=False)
         self.db.connect()
         self.db.create_tables()
 

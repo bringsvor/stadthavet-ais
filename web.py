@@ -127,12 +127,61 @@ def api_stats():
     row = cursor.fetchone()
     last_data_time = row['max_time'] if USE_POSTGRES else row[0]
 
+    # Ship length statistics (ships with length data)
+    cursor.execute('''
+        SELECT COUNT(*) as count FROM ships WHERE length IS NOT NULL AND length >= 50
+    ''')
+    row = cursor.fetchone()
+    ships_over_50m = row['count'] if USE_POSTGRES else row[0]
+
+    cursor.execute('''
+        SELECT COUNT(*) as count FROM ships WHERE length IS NOT NULL AND length < 50
+    ''')
+    row = cursor.fetchone()
+    ships_under_50m = row['count'] if USE_POSTGRES else row[0]
+
+    # Crossings by ship size
+    cursor.execute('''
+        SELECT COUNT(*) as count FROM crossings c
+        JOIN ships s ON c.mmsi = s.mmsi
+        WHERE s.length IS NOT NULL AND s.length >= 50
+    ''')
+    row = cursor.fetchone()
+    crossings_over_50m = row['count'] if USE_POSTGRES else row[0]
+
+    cursor.execute('''
+        SELECT COUNT(*) as count FROM crossings c
+        JOIN ships s ON c.mmsi = s.mmsi
+        WHERE s.length IS NOT NULL AND s.length < 50
+    ''')
+    row = cursor.fetchone()
+    crossings_under_50m = row['count'] if USE_POSTGRES else row[0]
+
+    # Waiting events by ship size
+    cursor.execute('''
+        SELECT COUNT(*) as count, AVG(duration_minutes) as avg_duration FROM waiting_events w
+        JOIN ships s ON w.mmsi = s.mmsi
+        WHERE s.length IS NOT NULL AND s.length >= 50
+    ''')
+    row = cursor.fetchone()
+    waiting_over_50m = row['count'] if USE_POSTGRES else row[0]
+    avg_wait_over_50m = (row['avg_duration'] if USE_POSTGRES else row[1]) or 0
+
+    cursor.execute('''
+        SELECT COUNT(*) as count, AVG(duration_minutes) as avg_duration FROM waiting_events w
+        JOIN ships s ON w.mmsi = s.mmsi
+        WHERE s.length IS NOT NULL AND s.length < 50
+    ''')
+    row = cursor.fetchone()
+    waiting_under_50m = row['count'] if USE_POSTGRES else row[0]
+    avg_wait_under_50m = (row['avg_duration'] if USE_POSTGRES else row[1]) or 0
+
     # Top 10 ships by crossings
     cursor.execute('''
-        SELECT s.mmsi, s.name, s.ship_type_name, COUNT(*) as crossing_count
+        SELECT s.mmsi, s.name, s.ship_type_name, s.length, COUNT(*) as crossing_count
         FROM crossings c
         JOIN ships s ON c.mmsi = s.mmsi
-        GROUP BY s.mmsi, s.name, s.ship_type_name
+        GROUP BY s.mmsi, s.name, s.ship_type_name, s.length
         ORDER BY crossing_count DESC
         LIMIT 10
     ''')
@@ -144,6 +193,7 @@ def api_stats():
                 'mmsi': row['mmsi'],
                 'name': row['name'],
                 'ship_type': row['ship_type_name'],
+                'length': row['length'],
                 'crossings': row['crossing_count']
             })
         else:
@@ -151,7 +201,8 @@ def api_stats():
                 'mmsi': row[0],
                 'name': row[1],
                 'ship_type': row[2],
-                'crossings': row[3]
+                'length': row[3],
+                'crossings': row[4]
             })
 
     conn.close()
@@ -164,7 +215,25 @@ def api_stats():
         'total_positions': total_positions,
         'recent_crossings_24h': recent_crossings,
         'last_data_collection': last_data_time,
-        'top_ships_by_crossings': top_ships
+        'top_ships_by_crossings': top_ships,
+        'ships_by_size': {
+            'over_50m': ships_over_50m,
+            'under_50m': ships_under_50m
+        },
+        'crossings_by_size': {
+            'over_50m': crossings_over_50m,
+            'under_50m': crossings_under_50m
+        },
+        'waiting_by_size': {
+            'over_50m': {
+                'count': waiting_over_50m,
+                'avg_duration_minutes': round(avg_wait_over_50m, 1)
+            },
+            'under_50m': {
+                'count': waiting_under_50m,
+                'avg_duration_minutes': round(avg_wait_under_50m, 1)
+            }
+        }
     })
 
 @app.route('/api/crossings')

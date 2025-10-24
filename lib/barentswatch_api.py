@@ -7,63 +7,9 @@ import requests
 import time
 from lib.geo_utils import line_segments_intersect, distance_to_stad_line
 from lib.config import get_ship_type_name
+from lib.ship_lookup import get_ship_info
 
 logger = logging.getLogger(__name__)
-
-
-def fetch_latest_static_data(access_token, mmsi, config):
-    """
-    Fetch latest static data (destination, callsign, dimensions) for a ship
-
-    Args:
-        access_token: Barentswatch API access token
-        mmsi: Ship MMSI number
-        config: Configuration dict with API URL
-
-    Returns:
-        dict: Static data with destination, callsign, length, width or None if failed
-    """
-    url = f"{config['latest_url']}/vessel/{mmsi}"
-    headers = {
-        'Authorization': f'Bearer {access_token}',
-        'Content-Type': 'application/json'
-    }
-
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-
-        if response.status_code == 200:
-            data = response.json()
-
-            # Extract static data
-            destination = data.get('destination', '').strip()
-            callsign = data.get('callSign', '').strip()
-
-            # Calculate dimensions
-            dim_a = data.get('dimensionA', 0) or 0
-            dim_b = data.get('dimensionB', 0) or 0
-            dim_c = data.get('dimensionC', 0) or 0
-            dim_d = data.get('dimensionD', 0) or 0
-
-            length = dim_a + dim_b if (dim_a or dim_b) else None
-            width = dim_c + dim_d if (dim_c or dim_d) else None
-
-            return {
-                'destination': destination if destination else None,
-                'callsign': callsign if callsign else None,
-                'length': length,
-                'width': width
-            }
-        elif response.status_code == 404:
-            # Ship not found in latest data
-            return None
-        else:
-            logger.warning(f"Failed to fetch static data for {mmsi}: {response.status_code}")
-            return None
-
-    except Exception as e:
-        logger.warning(f"Error fetching static data for {mmsi}: {e}")
-        return None
 
 
 def get_access_token(config):
@@ -199,40 +145,22 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto, config
     ship_type = positions[0].get('shipType')
     ship_type_name = get_ship_type_name(ship_type)
 
-    # Extract static data from positions (if available in AIS messages)
-    # Note: Historic API sometimes includes these fields, but not always
-    destination = None
-    callsign = None
-    length = None
-    width = None
+    # Fetch static ship data from Marinesia API
+    # This includes length, width, destination, callsign, etc.
+    # Data is cached in database, so we only fetch once per ship
+    ship_info = get_ship_info(mmsi, config)
 
-    # Try to find a position with static data
-    for pos in positions[:10]:  # Check first 10 positions
-        if not destination and pos.get('destination'):
-            destination = pos.get('destination').strip()
-        if not callsign and pos.get('callSign'):
-            callsign = pos.get('callSign').strip()
-
-        # Calculate dimensions if available
-        if length is None:
-            dim_a = pos.get('dimensionA')
-            dim_b = pos.get('dimensionB')
-            if dim_a and dim_b:
-                length = dim_a + dim_b
-            elif dim_a or dim_b:
-                length = (dim_a or 0) + (dim_b or 0)
-
-        if width is None:
-            dim_c = pos.get('dimensionC')
-            dim_d = pos.get('dimensionD')
-            if dim_c and dim_d:
-                width = dim_c + dim_d
-            elif dim_c or dim_d:
-                width = (dim_c or 0) + (dim_d or 0)
-
-        # Stop if we have all data
-        if destination and callsign and length and width:
-            break
+    if ship_info:
+        length = ship_info.get('length')
+        width = ship_info.get('width')
+        callsign = ship_info.get('callsign')
+        # Note: Marinesia doesn't provide destination (that's dynamic AIS data)
+        destination = None
+    else:
+        destination = None
+        callsign = None
+        length = None
+        width = None
 
     # Store ship info
     if db.use_postgres:

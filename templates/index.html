@@ -162,6 +162,26 @@
                     </div>
                 </div>
 
+                <h3>📏 Skipsstorleik</h3>
+                <div class="stats-summary">
+                    <div class="stat-item">
+                        <div class="stat-value" id="modal-ships-over-50">-</div>
+                        <div class="stat-label">Skip ≥ 50m</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="modal-ships-under-50">-</div>
+                        <div class="stat-label">Skip < 50m</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="modal-crossings-over-50">-</div>
+                        <div class="stat-label">Kryssingar ≥ 50m</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="modal-crossings-under-50">-</div>
+                        <div class="stat-label">Kryssingar < 50m</div>
+                    </div>
+                </div>
+
                 <h3 data-i18n="stats.topShips">🏆 Topp 10 skip etter kryssingar</h3>
                 <table class="stats-table">
                     <thead>
@@ -169,11 +189,12 @@
                             <th>#</th>
                             <th data-i18n="table.shipName">Namn</th>
                             <th data-i18n="table.shipType">Type</th>
+                            <th>Lengde</th>
                             <th data-i18n="table.crossings">Kryssingar</th>
                         </tr>
                     </thead>
                     <tbody id="top-ships-tbody">
-                        <tr><td colspan="4"><span data-i18n="loading.stats">Lastar...</span></td></tr>
+                        <tr><td colspan="5"><span data-i18n="loading.stats">Lastar...</span></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -212,16 +233,28 @@
                 document.getElementById('modal-recent-24h').textContent = data.recent_crossings_24h;
                 document.getElementById('modal-total-positions').textContent = data.total_positions.toLocaleString();
 
+                // Update ship size stats
+                if (data.ships_by_size) {
+                    document.getElementById('modal-ships-over-50').textContent = data.ships_by_size.over_50m || 0;
+                    document.getElementById('modal-ships-under-50').textContent = data.ships_by_size.under_50m || 0;
+                }
+                if (data.crossings_by_size) {
+                    document.getElementById('modal-crossings-over-50').textContent = data.crossings_by_size.over_50m || 0;
+                    document.getElementById('modal-crossings-under-50').textContent = data.crossings_by_size.under_50m || 0;
+                }
+
                 // Update top 10 ships table
                 const tbody = document.getElementById('top-ships-tbody');
                 tbody.innerHTML = '';
 
                 data.top_ships_by_crossings.forEach((ship, index) => {
                     const row = document.createElement('tr');
+                    const lengthText = ship.length ? `${ship.length}m` : '-';
                     row.innerHTML = `
                         <td>${index + 1}</td>
                         <td>${ship.name}</td>
                         <td>${ship.ship_type || '-'}</td>
+                        <td>${lengthText}</td>
                         <td>${ship.crossings}</td>
                     `;
                     tbody.appendChild(row);

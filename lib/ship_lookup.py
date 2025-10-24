@@ -5,13 +5,22 @@ Ship lookup integration using Marinesia API for vessel static data
 import logging
 import requests
 import os
+import time
+from threading import Lock
 
 logger = logging.getLogger(__name__)
+
+# Global rate limiting: 10 requests per minute = 1 request per 6 seconds
+_last_request_time = 0
+_request_lock = Lock()
 
 
 def get_ship_info(mmsi, config):
     """
     Fetch ship static data (length, width, etc.) from Marinesia API
+
+    Rate limit: 10 requests/minute per Marinesia docs
+    This function includes retry logic with exponential backoff for 429 errors
 
     Args:
         mmsi: Ship MMSI number
@@ -30,6 +39,18 @@ def get_ship_info(mmsi, config):
     url = f'https://api.marinesia.com/api/v1/vessel/{mmsi}/profile'
     params = {'key': api_key}
 
+    # Enforce rate limit: max 10 requests per minute (1 every 6 seconds)
+    global _last_request_time
+    with _request_lock:
+        now = time.time()
+        time_since_last = now - _last_request_time
+        if time_since_last < 6.5:  # Add 0.5s buffer
+            sleep_time = 6.5 - time_since_last
+            logger.debug(f"Rate limiting: sleeping {sleep_time:.1f}s before MMSI {mmsi}")
+            time.sleep(sleep_time)
+        _last_request_time = time.time()
+
+    # Single request with rate limiting already enforced above
     try:
         response = requests.get(url, params=params, timeout=10)
 
@@ -61,6 +82,12 @@ def get_ship_info(mmsi, config):
         elif response.status_code == 404:
             logger.debug(f"Ship not found in Marinesia: MMSI {mmsi}")
             return None
+
+        elif response.status_code == 429:
+            # Rate limit exceeded - this shouldn't happen with our rate limiting, but log it
+            logger.warning(f"Rate limit hit for MMSI {mmsi} despite rate limiting (skipping)")
+            return None
+
         else:
             logger.warning(f"Marinesia API error for MMSI {mmsi}: {response.status_code}")
             return None

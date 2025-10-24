@@ -39,13 +39,14 @@ def get_ship_info(mmsi, config):
     url = f'https://api.marinesia.com/api/v1/vessel/{mmsi}/profile'
     params = {'key': api_key}
 
-    # Enforce rate limit: max 10 requests per minute (1 every 6 seconds)
+    # Enforce rate limit: Being conservative with 10s between requests
+    # (Marinesia docs say 10 req/min, but seems stricter in practice)
     global _last_request_time
     with _request_lock:
         now = time.time()
         time_since_last = now - _last_request_time
-        if time_since_last < 6.5:  # Add 0.5s buffer
-            sleep_time = 6.5 - time_since_last
+        if time_since_last < 10.0:  # Conservative: 10 seconds = ~6 req/min
+            sleep_time = 10.0 - time_since_last
             logger.debug(f"Rate limiting: sleeping {sleep_time:.1f}s before MMSI {mmsi}")
             time.sleep(sleep_time)
         _last_request_time = time.time()

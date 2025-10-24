@@ -145,43 +145,72 @@ def fetch_and_store_track(db, access_token, mmsi, msgtimefrom, msgtimeto, config
     ship_type = positions[0].get('shipType')
     ship_type_name = get_ship_type_name(ship_type)
 
-    # Fetch static ship data from Marinesia API
-    # This includes length, width, destination, callsign, etc.
-    # Data is cached in database, so we only fetch once per ship
-    ship_info = get_ship_info(mmsi, config)
-
-    if ship_info:
-        length = ship_info.get('length')
-        width = ship_info.get('width')
-        callsign = ship_info.get('callsign')
-        # Note: Marinesia doesn't provide destination (that's dynamic AIS data)
-        destination = None
-    else:
-        destination = None
-        callsign = None
-        length = None
-        width = None
-
-    # Store ship info (and mark that we attempted to fetch ship info)
+    # Check if we need to fetch ship info from Marinesia API
+    # Only fetch if we haven't tried before (ship_info_fetched_at IS NULL)
     if db.use_postgres:
-        db.execute('''
-            INSERT INTO ships (mmsi, name, ship_type, ship_type_name, destination, callsign, length, width, ship_info_fetched_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
-            ON CONFLICT (mmsi) DO UPDATE
-            SET name = EXCLUDED.name,
-                ship_type = EXCLUDED.ship_type,
-                ship_type_name = EXCLUDED.ship_type_name,
-                destination = EXCLUDED.destination,
-                callsign = EXCLUDED.callsign,
-                length = EXCLUDED.length,
-                width = EXCLUDED.width,
-                ship_info_fetched_at = NOW()
-        ''', (mmsi, ship_name, ship_type, ship_type_name, destination, callsign, length, width))
+        db.execute('SELECT ship_info_fetched_at FROM ships WHERE mmsi = %s', (mmsi,))
     else:
-        db.execute('''
-            INSERT OR REPLACE INTO ships (mmsi, name, ship_type, ship_type_name, destination, callsign, length, width, ship_info_fetched_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        ''', (mmsi, ship_name, ship_type, ship_type_name, destination, callsign, length, width))
+        db.execute('SELECT ship_info_fetched_at FROM ships WHERE mmsi = ?', (mmsi,))
+
+    existing_ship = db.fetchone()
+    should_fetch_ship_info = (existing_ship is None or existing_ship[0] is None)
+
+    if should_fetch_ship_info:
+        # Fetch static ship data from Marinesia API
+        # This includes length, width, destination, callsign, etc.
+        ship_info = get_ship_info(mmsi, config)
+
+        if ship_info:
+            length = ship_info.get('length')
+            width = ship_info.get('width')
+            callsign = ship_info.get('callsign')
+            destination = None
+        else:
+            destination = None
+            callsign = None
+            length = None
+            width = None
+
+        # Store ship info (and mark that we attempted to fetch ship info)
+        if db.use_postgres:
+            db.execute('''
+                INSERT INTO ships (mmsi, name, ship_type, ship_type_name, destination, callsign, length, width, ship_info_fetched_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (mmsi) DO UPDATE
+                SET name = EXCLUDED.name,
+                    ship_type = EXCLUDED.ship_type,
+                    ship_type_name = EXCLUDED.ship_type_name,
+                    destination = EXCLUDED.destination,
+                    callsign = EXCLUDED.callsign,
+                    length = EXCLUDED.length,
+                    width = EXCLUDED.width,
+                    ship_info_fetched_at = NOW()
+            ''', (mmsi, ship_name, ship_type, ship_type_name, destination, callsign, length, width))
+        else:
+            db.execute('''
+                INSERT OR REPLACE INTO ships (mmsi, name, ship_type, ship_type_name, destination, callsign, length, width, ship_info_fetched_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (mmsi, ship_name, ship_type, ship_type_name, destination, callsign, length, width))
+    else:
+        # Ship info already fetched, just update basic info without touching length/width/callsign
+        if db.use_postgres:
+            db.execute('''
+                INSERT INTO ships (mmsi, name, ship_type, ship_type_name)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (mmsi) DO UPDATE
+                SET name = EXCLUDED.name,
+                    ship_type = EXCLUDED.ship_type,
+                    ship_type_name = EXCLUDED.ship_type_name
+            ''', (mmsi, ship_name, ship_type, ship_type_name))
+        else:
+            db.execute('''
+                INSERT INTO ships (mmsi, name, ship_type, ship_type_name)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (mmsi) DO UPDATE
+                SET name = EXCLUDED.name,
+                    ship_type = EXCLUDED.ship_type,
+                    ship_type_name = EXCLUDED.ship_type_name
+            ''', (mmsi, ship_name, ship_type, ship_type_name))
 
     # Process positions and check for crossings
     crossings_detected = 0

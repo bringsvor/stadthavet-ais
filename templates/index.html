@@ -173,12 +173,24 @@
                         <div class="stat-label">Skip < 50m</div>
                     </div>
                     <div class="stat-item">
+                        <div class="stat-value" id="modal-ships-unknown">-</div>
+                        <div class="stat-label">Ukjent lengde</div>
+                    </div>
+                </div>
+
+                <h3>📊 Kryssingar etter storleik</h3>
+                <div class="stats-summary">
+                    <div class="stat-item">
                         <div class="stat-value" id="modal-crossings-over-50">-</div>
-                        <div class="stat-label">Kryssingar ≥ 50m</div>
+                        <div class="stat-label">≥ 50m</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-value" id="modal-crossings-under-50">-</div>
-                        <div class="stat-label">Kryssingar < 50m</div>
+                        <div class="stat-label">< 50m</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="modal-crossings-unknown">-</div>
+                        <div class="stat-label">Ukjent</div>
                     </div>
                 </div>
 
@@ -237,10 +249,22 @@
                 if (data.ships_by_size) {
                     document.getElementById('modal-ships-over-50').textContent = data.ships_by_size.over_50m || 0;
                     document.getElementById('modal-ships-under-50').textContent = data.ships_by_size.under_50m || 0;
+
+                    const shipsUnknownElem = document.getElementById('modal-ships-unknown');
+                    const shipsUnknown = data.ships_by_size.unknown || 0;
+                    shipsUnknownElem.textContent = shipsUnknown;
+                    // Hide unknown box if 0
+                    shipsUnknownElem.parentElement.style.display = shipsUnknown === 0 ? 'none' : 'block';
                 }
                 if (data.crossings_by_size) {
                     document.getElementById('modal-crossings-over-50').textContent = data.crossings_by_size.over_50m || 0;
                     document.getElementById('modal-crossings-under-50').textContent = data.crossings_by_size.under_50m || 0;
+
+                    const crossingsUnknownElem = document.getElementById('modal-crossings-unknown');
+                    const crossingsUnknown = data.crossings_by_size.unknown || 0;
+                    crossingsUnknownElem.textContent = crossingsUnknown;
+                    // Hide unknown box if 0
+                    crossingsUnknownElem.parentElement.style.display = crossingsUnknown === 0 ? 'none' : 'block';
                 }
 
                 // Update top 10 ships table
